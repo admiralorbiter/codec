@@ -18,7 +18,7 @@
   <!-- Top Tactical Header -->
   <header class="codec-header">
     <div class="codec-brand">
-      <a href="{{ url_for('cockpit') }}" class="codec-logo" style="text-decoration: none;">
+      <a href="{{ url_for('cockpit') }}" class="codec-logo" style="text-decoration: none;" onclick="playCodecRing()">
         <span>CODEC</span>
         <span class="freq">140.85</span>
       </a>
@@ -62,13 +62,16 @@
 
     <!-- Quick Actions -->
     <div class="header-actions">
-      <button class="btn-capture" title="Universal Voice Capture" onclick="openUniversalCaptureModal()">
+      <button class="btn-action" id="btn-toggle-sound" style="font-size: 0.85rem; padding: 4px 6px;" title="Tactical Sound Effects (Click to Mute/Unmute)" onclick="toggleAudio()">
+        🔊
+      </button>
+      <button class="btn-capture" title="Universal Voice Capture (Shortcut: C)" onclick="openUniversalCaptureModal()">
         <span id="mic-icon">🎙</span> CAPTURE
       </button>
       <button class="btn-new-thread" onclick="openNewThreadModal()">
         + THREAD
       </button>
-      <button class="btn-action" style="font-size: 0.72rem; padding: 4px 8px; color: var(--amber-alert); border-color: rgba(235, 179, 58, 0.4);" title="Log Dogfood Friction Observation" onclick="openFrictionModal()">
+      <button class="btn-action" style="font-size: 0.72rem; padding: 4px 8px; color: var(--amber-alert); border-color: rgba(235, 179, 58, 0.4);" title="Log Dogfood Friction Observation (Mei Ling 140.96)" onclick="openFrictionModal()">
         ⚠️ FRICTION
       </button>
     </div>

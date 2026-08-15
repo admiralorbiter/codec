@@ -2508,4 +2508,29 @@ body::before {
   color: var(--amber-alert);
 }
 
+/* Konami Code Tactical Solid Snake Phosphor HUD Boost */
+body.solid-snake-hud-boost {
+  filter: contrast(1.15) brightness(1.05);
+  box-shadow: inset 0 0 100px rgba(46, 252, 141, 0.15);
+}
+
+body.solid-snake-hud-boost::before {
+  background: linear-gradient(
+    rgba(18, 16, 16, 0) 50%, 
+    rgba(46, 252, 141, 0.1) 50%
+  ), linear-gradient(
+    90deg,
+    rgba(255, 0, 0, 0.03),
+    rgba(0, 255, 0, 0.01),
+    rgba(0, 0, 255, 0.03)
+  );
+  background-size: 100% 3px, 6px 100%;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+
 

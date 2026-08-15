@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   initSpeechRecognition();
+  updateAudioBtnIcon();
 });
 
 function openDrawer() {
@@ -288,8 +289,192 @@ async function submitCaptureCommit() {
 }
 
 // -------------------------------------------------------------
-// Friction Telemetry Logger
+// Metal Gear Solid Tactical Sound Synthesizer (Web Audio API)
 // -------------------------------------------------------------
+let audioCtx = null;
+let audioEnabled = localStorage.getItem('codec_audio_enabled') !== 'false';
+
+function getAudioContext() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+  return audioCtx;
+}
+
+function playTone(freq, type, startTime, duration, gainVal = 0.12) {
+  const ctx = getAudioContext();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, startTime);
+  
+  gain.gain.setValueAtTime(gainVal, startTime);
+  gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+  
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  
+  osc.start(startTime);
+  osc.stop(startTime + duration);
+}
+
+// Authentic Codec Ring Chime (Beep-Beep... Beep-Beep)
+function playCodecRing() {
+  if (!audioEnabled) return;
+  try {
+    const ctx = getAudioContext();
+    const now = ctx.currentTime;
+    
+    // First pulse pair
+    playTone(987.77, 'sine', now, 0.07, 0.12);        // B5
+    playTone(783.99, 'sine', now + 0.08, 0.07, 0.12);  // G5
+    
+    // Second pulse pair
+    playTone(987.77, 'sine', now + 0.22, 0.07, 0.12); // B5
+    playTone(783.99, 'sine', now + 0.30, 0.07, 0.12); // G5
+  } catch (e) {}
+}
+
+// Iconic Metal Gear Alert "!" sound
+function playAlertSound() {
+  if (!audioEnabled) return;
+  try {
+    const ctx = getAudioContext();
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(550, now);
+    osc.frequency.exponentialRampToValueAtTime(1400, now + 0.12);
+    
+    gain.gain.setValueAtTime(0.18, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+    
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    
+    osc.start(now);
+    osc.stop(now + 0.22);
+  } catch (e) {}
+}
+
+function toggleAudio() {
+  audioEnabled = !audioEnabled;
+  localStorage.setItem('codec_audio_enabled', audioEnabled);
+  updateAudioBtnIcon();
+  if (audioEnabled) playCodecRing();
+}
+
+function updateAudioBtnIcon() {
+  const btn = document.getElementById('btn-toggle-sound');
+  if (btn) {
+    btn.textContent = audioEnabled ? '🔊' : '🔇';
+    btn.title = audioEnabled ? 'Sound Effects Active (Click to Mute)' : 'Sound Effects Muted (Click to Enable)';
+  }
+}
+
+// -------------------------------------------------------------
+// Mei Ling Proverb Generator [FREQ 140.96]
+// -------------------------------------------------------------
+const MEI_LING_PROVERBS = [
+  "“A strong man doesn't need to read the future. He makes his own.” — Solid Snake",
+  "“A journey of a thousand miles begins with a single step.” — Mei Ling [FREQ 140.96]",
+  "“Do not worry about being unrecognized; seek to be worthy of recognition.” — Confucius",
+  "“To know what is right and not do it is the worst cowardice.” — Mei Ling [FREQ 140.96]",
+  "“Be prepared for whatever the mission throws at you. Don't forget to save!” — Mei Ling",
+  "“The wise adapt themselves to circumstances, as water moulds itself to the pitcher.” — Chinese Proverb"
+];
+
+function getRandomMeiLingProverb() {
+  return MEI_LING_PROVERBS[Math.floor(Math.random() * MEI_LING_PROVERBS.length)];
+}
+
+function showTacticalToast(message, isMeiLing = false) {
+  let toast = document.getElementById('codec-tactical-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'codec-tactical-toast';
+    toast.style.cssText = `
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: rgba(6, 10, 8, 0.95);
+      border: 1px solid var(--codec-green);
+      color: var(--codec-green);
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      padding: 12px 18px;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.8), 0 0 15px var(--codec-green-glow);
+      z-index: 9999;
+      max-width: 380px;
+      line-height: 1.4;
+      animation: fadeIn 0.2s ease-in;
+    `;
+    document.body.appendChild(toast);
+  }
+  
+  if (isMeiLing) {
+    toast.innerHTML = `<div style="color: var(--amber-alert); font-size: 0.7rem; margin-bottom: 4px;">📻 MEI LING // FREQ 140.96</div>${message}`;
+  } else {
+    toast.innerHTML = `<div style="color: var(--text-dim); font-size: 0.7rem; margin-bottom: 4px;">⚡ CODEC // FREQ 140.85</div>${message}`;
+  }
+  
+  toast.style.display = 'block';
+  setTimeout(() => {
+    if (toast) toast.style.display = 'none';
+  }, 4500);
+}
+
+// -------------------------------------------------------------
+// Konami Code Easter Egg (↑ ↑ ↓ ↓ ← → ← → B A)
+// -------------------------------------------------------------
+const konamiPattern = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'];
+let konamiPosition = 0;
+
+document.addEventListener('keydown', (e) => {
+  const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  const expected = konamiPattern[konamiPosition].toLowerCase();
+
+  if (key === expected) {
+    konamiPosition++;
+    if (konamiPosition === konamiPattern.length) {
+      konamiPosition = 0;
+      activateKonamiMode();
+    }
+  } else {
+    konamiPosition = 0;
+  }
+
+  // Press 'c' outside inputs to trigger Codec call sound
+  if (key === 'c' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) {
+    playCodecRing();
+    showTacticalToast("TRANSMITTING ON FREQ 140.85... ALL CHANNELS ACTIVE");
+  }
+});
+
+function activateKonamiMode() {
+  document.body.classList.toggle('solid-snake-hud-boost');
+  playCodecRing();
+  const isActive = document.body.classList.contains('solid-snake-hud-boost');
+  showTacticalToast(
+    isActive ? "⚡ SOLID SNAKE TACTICAL PHOSPHOR BOOST ACTIVE // FREQ 140.85" : "TACTICAL HUD RETURNED TO STANDARD PROFILE",
+    false
+  );
+}
+
+// Trigger Codec sound when opening Universal Capture
+const origOpenCapture = openUniversalCaptureModal;
+openUniversalCaptureModal = function() {
+  playCodecRing();
+  origOpenCapture();
+};
+
+// Friction Telemetry with Mei Ling Proverb Toast
 async function submitFrictionLog(event) {
   event.preventDefault();
   const form = event.target;
@@ -304,23 +489,17 @@ async function submitFrictionLog(event) {
     if (res.ok) {
       closeFrictionModal();
       form.reset();
-      alert('Friction observation logged. Thank you for the telemetry.');
+      playCodecRing();
+      showTacticalToast(getRandomMeiLingProverb(), true);
     }
   } catch (err) {
     console.error('Failed to record friction:', err);
   }
 }
 
-function simulateVoiceMemo(form) {
-  const textarea = form.querySelector('textarea');
-  if (textarea) {
-    textarea.value = "🎙 [Dictated Voice Memo] Finished parser handler conversion. Verified event streams under 5ms latency. Moving to storage schema.";
-    textarea.focus();
-  }
-}
-
 // Hot-swap thread into a specific parallel channel pane via HTMX
 function fetchChannelThread(channelNum, threadId) {
+  playCodecRing();
   const targetId = `#channel-pane-${channelNum}`;
   const url = `/channels/${channelNum}/thread/${threadId}`;
   if (window.htmx) {
@@ -329,5 +508,7 @@ function fetchChannelThread(channelNum, threadId) {
     window.location.href = url;
   }
 }
+
+
 
 
