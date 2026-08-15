@@ -60,34 +60,54 @@
   <!-- 2. RUNNING (Execution Progress Card) -->
   {% elif thread.queue == 'RUNNING' %}
   {% set ws = thread.get_working_set() %}
+  {% set wp = thread.active_work_packet %}
   <div class="card-state-body card-body-running">
     <div class="running-status-row">
       <span class="running-pulse-indicator"></span>
       <span><strong>{{ thread.current_actor.name if thread.current_actor else 'Compute Process' }}</strong> Executing</span>
-      <span class="running-step-tag">Step 3 / 5</span>
+      <span class="running-step-tag">{{ wp.authority_level if wp else 'Step 3 / 5' }}</span>
     </div>
     <div class="card-frontier-text">
-      {{ thread.frontier }}
+      {{ wp.desired_outcome if wp else thread.frontier }}
     </div>
+    {% if wp and wp.stop_conditions %}
+    <div style="font-size: 0.7rem; color: var(--amber-alert); margin-top: 4px;">
+      <strong>GUARDRAIL:</strong> {{ wp.stop_conditions }}
+    </div>
+    {% endif %}
     <div class="running-timing-row">
-      <span>Human action: <em>None</em></span>
-      <span>Next checkpoint: <em>{{ ws.get('expected_duration', '~11 min') }}</em></span>
+      <span>Human action: <em>Supervising</em></span>
+      <span>Next checkpoint: <em>{{ ws.get('expected_duration', '~10 min') }}</em></span>
     </div>
   </div>
 
   <!-- 3. READY / PREPARED (Work Packet Card) -->
   {% elif thread.queue == 'READY' %}
+  {% set wp = thread.active_work_packet %}
   <div class="card-state-body card-body-ready">
     <div class="ready-packet-header">
-      <span>⚡ Work Packet Prepared · Stop Conditions Defined</span>
+      <span>⚡ Work Packet Prepared · {{ wp.authority_level if wp else 'Ready for Action' }}</span>
     </div>
     <div class="card-frontier-text">
-      {{ thread.frontier }}
+      {{ wp.desired_outcome if wp else thread.frontier }}
     </div>
+    {% if wp and wp.stop_conditions %}
+    <div style="font-size: 0.7rem; color: var(--amber-alert); margin-top: 4px;">
+      <strong>STOP IF:</strong> {{ wp.stop_conditions }}
+    </div>
+    {% endif %}
     <div class="card-action-bar">
+      {% if wp and wp.status == 'PREPARED' %}
+      <form method="POST" action="{{ url_for('work_packet_dispatch', packet_id=wp.id) }}" style="display: inline; width: 100%;">
+        <button type="submit" class="btn-card-action btn-card-ready" style="width: 100%; text-align: center; border: none; cursor: pointer;">
+          🚀 Launch / Dispatch to Agent
+        </button>
+      </form>
+      {% else %}
       <a href="{{ url_for('thread_workspace_view', thread_id=thread.id) }}" class="btn-card-action btn-card-ready">
         ⚡ Launch / Dispatch
       </a>
+      {% endif %}
     </div>
   </div>
 

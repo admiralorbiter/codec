@@ -133,6 +133,41 @@ function closeGitCommitModal() {
   if (modal) modal.style.display = 'none';
 }
 
+function openWorkPacketModal() {
+  const modal = document.getElementById('work-packet-modal');
+  if (modal) modal.style.display = 'flex';
+}
+
+function closeWorkPacketModal() {
+  const modal = document.getElementById('work-packet-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+function openReworkModal(packetId) {
+  const modal = document.getElementById('rework-modal');
+  const form = document.getElementById('rework-form');
+  if (modal && form) {
+    form.action = `/work-packets/${packetId}/rework`;
+    modal.style.display = 'flex';
+  }
+}
+
+function closeReworkModal() {
+  const modal = document.getElementById('rework-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+function addStopConditionPreset(text) {
+  const input = document.getElementById('wp-stop-conditions-input');
+  if (input) {
+    if (input.value && input.value.trim().length > 0) {
+      input.value += '; ' + text;
+    } else {
+      input.value = text;
+    }
+  }
+}
+
 async function autoGenerateCommitMessage(threadId) {
   try {
     const input = document.getElementById('git-commit-message-input');

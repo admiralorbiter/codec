@@ -91,6 +91,7 @@ class Thread(Base):
     surfaces = relationship("Surface", back_populates="thread", cascade="all, delete-orphan", order_by="Surface.created_at.desc()")
     episodes = relationship("Episode", back_populates="thread", cascade="all, delete-orphan", order_by="Episode.started_at.desc()")
     events = relationship("Event", back_populates="thread", cascade="all, delete-orphan", order_by="Event.occurred_at.asc()")
+    work_packets = relationship("WorkPacket", back_populates="thread", cascade="all, delete-orphan", order_by="WorkPacket.created_at.desc()")
     
     subthreads = relationship(
         "Thread",
@@ -100,6 +101,14 @@ class Thread(Base):
 
     def __repr__(self):
         return f"<Thread #{self.id}: {self.name} [{self.state}]>"
+
+    @property
+    def active_work_packet(self):
+        """Returns the most recent active or reviewing work packet if any."""
+        for wp in self.work_packets:
+            if wp.status in ("PREPARED", "DISPATCHED", "DELIVERED", "REWORK_REQUESTED"):
+                return wp
+        return None
 
     @property
     def queue(self) -> str:
@@ -394,4 +403,47 @@ class FrictionLog(Base):
             "thread_id": self.thread_id,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
+
+
+class WorkPacket(Base):
+    __tablename__ = "work_packets"
+
+    id = Column(Integer, primary_key=True)
+    thread_id = Column(Integer, ForeignKey("threads.id"), nullable=False)
+    desired_outcome = Column(Text, nullable=False)
+    constraints = Column(Text, nullable=True)
+    stop_conditions = Column(Text, nullable=True)
+    authority_level = Column(String(50), nullable=False, default="EXECUTE_AND_TEST")  # EXPLORATORY, PROPOSE_DIFF, EXECUTE_AND_TEST
+    expected_evidence = Column(String(255), nullable=False, default="Passing test suite & git working set diff")
+    review_requirement = Column(String(50), nullable=False, default="MANDATORY_HUMAN_REVIEW")  # MANDATORY_HUMAN_REVIEW, AUTO_ADOPT_IF_GREEN
+    status = Column(String(50), nullable=False, default="PREPARED")  # PREPARED, DISPATCHED, DELIVERED, ACCEPTED, REWORK_REQUESTED
+    result_summary = Column(Text, nullable=True)
+    result_evidence = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    dispatched_at = Column(DateTime(timezone=True), nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+
+    thread = relationship("Thread", back_populates="work_packets")
+
+    def __repr__(self):
+        return f"<WorkPacket #{self.id} on Thread #{self.thread_id} [{self.status}]>"
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "thread_id": self.thread_id,
+            "desired_outcome": self.desired_outcome,
+            "constraints": self.constraints,
+            "stop_conditions": self.stop_conditions,
+            "authority_level": self.authority_level,
+            "expected_evidence": self.expected_evidence,
+            "review_requirement": self.review_requirement,
+            "status": self.status,
+            "result_summary": self.result_summary,
+            "result_evidence": self.result_evidence,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "dispatched_at": self.dispatched_at.isoformat() if self.dispatched_at else None,
+            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+        }
+
 

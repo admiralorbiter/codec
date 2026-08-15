@@ -6,7 +6,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, scoped_session
 
 from config import Config
-from models import Base, Thread, Project, Actor, Event, Surface, Episode, utcnow
+from models import Base, Thread, Project, Actor, Event, Surface, Episode, WorkPacket, utcnow
 from domain.queries import (
     get_living_threads,
     get_cockpit_queues,
@@ -36,7 +36,12 @@ from domain.transitions import (
     log_friction,
     add_thread_relation,
     delete_thread_relation,
-    create_decision_gate
+    create_decision_gate,
+    create_work_packet,
+    dispatch_work_packet,
+    deliver_work_packet_result,
+    adopt_work_packet_result,
+    request_work_packet_rework
 )
 from domain.git_service import (
     sync_thread_git_working_set,
@@ -440,6 +445,10 @@ def create_app(config_class=Config):
             )
             g.db.add(event)
 
+            # Auto-advance thread frontier & next action
+            thread.frontier = f"Checkpointed @{new_commit}: {commit_message}. Working tree clean."
+            thread.next_action = f"Proceed from checkpoint @{new_commit} or review next architectural milestone."
+
             # Sync working set to refresh chips to clean state
             sync_thread_git_working_set(g.db, thread.id)
             g.db.commit()
@@ -544,6 +553,78 @@ def create_app(config_class=Config):
         if note:
             log_friction(g.db, note=note, category=category, page_url=page_url, thread_id=thread_id)
         return jsonify({"status": "recorded", "message": "Friction logged. Thank you for the telemetry."})
+
+
+    # -------------------------------------------------------------
+    # Horizon 2: Work Packet & Dispatch Engine Routes
+    # -------------------------------------------------------------
+
+    @app.route("/threads/<int:thread_id>/work-packets", methods=["POST"])
+    def thread_create_work_packet(thread_id: int):
+        desired_outcome = request.form.get("desired_outcome", "").strip()
+        constraints = request.form.get("constraints", "").strip() or None
+        stop_conditions = request.form.get("stop_conditions", "").strip() or None
+        authority_level = request.form.get("authority_level", "EXECUTE_AND_TEST")
+        expected_evidence = request.form.get("expected_evidence", "").strip() or "Passing test suite & git working set diff"
+        review_requirement = request.form.get("review_requirement", "MANDATORY_HUMAN_REVIEW")
+
+        if not desired_outcome:
+            abort(400, description="Desired outcome is required")
+
+        packet = create_work_packet(
+            g.db,
+            thread_id=thread_id,
+            desired_outcome=desired_outcome,
+            constraints=constraints,
+            stop_conditions=stop_conditions,
+            authority_level=authority_level,
+            expected_evidence=expected_evidence,
+            review_requirement=review_requirement
+        )
+
+        auto_dispatch = request.form.get("auto_dispatch") in ["true", "on", "1"]
+        if auto_dispatch:
+            dispatch_work_packet(g.db, packet.id, actor_name=request.form.get("actor_name", "Antigravity"))
+
+        return redirect(url_for("thread_workspace_view", thread_id=thread_id))
+
+    @app.route("/work-packets/<int:packet_id>/dispatch", methods=["POST"])
+    def work_packet_dispatch(packet_id: int):
+        actor_name = request.form.get("actor_name", "Antigravity")
+        packet = dispatch_work_packet(g.db, packet_id, actor_name=actor_name)
+        return redirect(url_for("thread_workspace_view", thread_id=packet.thread_id))
+
+    @app.route("/work-packets/<int:packet_id>/deliver", methods=["POST"])
+    def work_packet_deliver(packet_id: int):
+        data = request.get_json() if request.is_json else request.form.to_dict()
+        result_summary = data.get("result_summary", "").strip() or "Delivered work packet implementation."
+        evidence = data.get("evidence", "").strip() or None
+
+        packet = deliver_work_packet_result(g.db, packet_id, result_summary=result_summary, evidence=evidence)
+        if request.is_json:
+            return jsonify({"status": "delivered", "work_packet": packet.to_dict()})
+        return redirect(url_for("thread_workspace_view", thread_id=packet.thread_id))
+
+    @app.route("/work-packets/<int:packet_id>/adopt", methods=["POST"])
+    def work_packet_adopt(packet_id: int):
+        packet = adopt_work_packet_result(g.db, packet_id)
+        return redirect(url_for("thread_workspace_view", thread_id=packet.thread_id))
+
+    @app.route("/work-packets/<int:packet_id>/rework", methods=["POST"])
+    def work_packet_rework(packet_id: int):
+        rework_feedback = request.form.get("rework_feedback", "").strip() or "Please revise implementation and address test issues."
+        packet = request_work_packet_rework(g.db, packet_id, rework_feedback=rework_feedback)
+        return redirect(url_for("thread_workspace_view", thread_id=packet.thread_id))
+
+    @app.route("/threads/<int:thread_id>/work-packet/active", methods=["GET"])
+    def thread_active_work_packet_api(thread_id: int):
+        thread = get_thread_by_id(g.db, thread_id)
+        if not thread:
+            return jsonify({"error": "Thread not found"}), 404
+        wp = getattr(thread, "active_work_packet", None)
+        if not wp:
+            return jsonify({"status": "none", "message": "No active work packet on thread."})
+        return jsonify({"status": "active", "work_packet": wp.to_dict()})
 
 
     # -------------------------------------------------------------

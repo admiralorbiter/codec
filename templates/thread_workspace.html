@@ -18,6 +18,10 @@
     </div>
 
     <div class="workspace-nav-right">
+      <button class="btn-action" onclick="openWorkPacketModal()" style="color: var(--codec-green); border-color: rgba(68, 189, 50, 0.5);" title="Prepare structured delegation packet with stop conditions">
+        📦 + Work Packet
+      </button>
+
       <button class="btn-action" onclick="openGitCommitModal('{{ thread.id }}')" style="color: var(--amber-alert); border-color: var(--amber-alert);" title="Stage, commit, and snapshot current working tree">
         🌿 Git Commit
       </button>
@@ -122,6 +126,63 @@
         <!-- Working Set Constellation -->
         {% include '_working_set.html' %}
       </div>
+
+      <!-- Active Work Packet Banner (if any) -->
+      {% set wp = thread.active_work_packet %}
+      {% if wp %}
+      <div class="thread-banner-card" style="border-left: 3px solid var(--codec-green); background: rgba(18, 30, 23, 0.7); margin-bottom: 1.25rem;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px;">
+          <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+            <span class="badge" style="background: rgba(68, 189, 50, 0.2); color: var(--codec-green); border: 1px solid var(--codec-green);">
+              ⚡ DELEGATED WORK PACKET (#{{ wp.id }})
+            </span>
+            <span class="badge badge-mode">{{ wp.authority_level }}</span>
+            <span class="badge" style="background: var(--bg-deep); color: var(--text-dim);">{{ wp.status }}</span>
+          </div>
+
+          <div style="display: flex; gap: 6px;">
+            {% if wp.status == 'PREPARED' %}
+            <form method="POST" action="{{ url_for('work_packet_dispatch', packet_id=wp.id) }}" style="margin: 0;">
+              <button type="submit" class="btn-action btn-primary" style="font-size: 0.7rem; padding: 3px 8px;">
+                🚀 Dispatch to Agent
+              </button>
+            </form>
+            {% elif wp.status == 'DELIVERED' or thread.queue == 'NEEDS_YOU' %}
+            <form method="POST" action="{{ url_for('work_packet_adopt', packet_id=wp.id) }}" style="margin: 0;">
+              <button type="submit" class="btn-action btn-primary" style="font-size: 0.7rem; padding: 3px 8px; background: var(--codec-green); border-color: var(--codec-green);">
+                ✓ Accept &amp; Adopt
+              </button>
+            </form>
+            <button type="button" class="btn-action btn-warning" style="font-size: 0.7rem; padding: 3px 8px;" onclick="openReworkModal('{{ wp.id }}')">
+              ↺ Request Rework
+            </button>
+            {% endif %}
+          </div>
+        </div>
+
+        <div style="font-size: 0.9rem; font-weight: bold; color: var(--text-bright); margin-bottom: 6px;">
+          {{ wp.desired_outcome }}
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.75rem; color: var(--text-dim); background: var(--bg-deep); padding: 8px 12px; border-radius: 4px; border: 1px solid var(--border-tactical);">
+          <div>
+            <span style="color: var(--amber-alert); font-family: var(--font-mono); font-size: 0.68rem; font-weight: bold;">STOP CONDITIONS:</span>
+            <div>{{ wp.stop_conditions or 'None specified (Runs to completion)' }}</div>
+          </div>
+          <div>
+            <span style="color: var(--codec-green); font-family: var(--font-mono); font-size: 0.68rem; font-weight: bold;">EXPECTED EVIDENCE:</span>
+            <div>{{ wp.expected_evidence or 'Passing test suite & git working set diff' }}</div>
+          </div>
+        </div>
+
+        {% if wp.result_evidence %}
+        <div style="margin-top: 8px; padding: 8px; background: rgba(0, 0, 0, 0.4); border-radius: 4px; border: 1px solid var(--border-tactical);">
+          <div style="font-family: var(--font-mono); font-size: 0.68rem; color: var(--text-muted); margin-bottom: 4px;">DELIVERED EVIDENCE:</div>
+          <pre style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--codec-green); margin: 0; white-space: pre-wrap;">{{ wp.result_evidence }}</pre>
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
 
       <!-- Chronological Activity Braid -->
       <div class="braid-wrapper">
@@ -412,6 +473,107 @@
   </div>
 </div>
 
+<!-- Work Packet Creation Modal -->
+<div id="work-packet-modal" class="codec-modal" style="display: none;">
+  <div class="codec-modal-content" style="max-width: 620px;">
+    <div class="codec-modal-header">
+      <span>📦 PREPARE DELEGATED WORK PACKET</span>
+      <button class="modal-close-btn" onclick="closeWorkPacketModal()">✕</button>
+    </div>
+    <form method="POST" action="{{ url_for('thread_create_work_packet', thread_id=thread.id) }}">
+      <div class="codec-modal-body">
+        <label style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase;">
+          Desired Outcome (What must be accomplished?):
+        </label>
+        <textarea name="desired_outcome" class="modal-textarea" rows="3" placeholder="e.g. Implement Horizon 2 Work Packet schema, test suite, and UI adoption lifecycle" required></textarea>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px;">
+          <div>
+            <label style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase;">
+              Authority Level:
+            </label>
+            <select name="authority_level" class="channel-thread-select" style="width: 100%; margin-top: 4px;">
+              <option value="EXECUTE_AND_TEST" selected>🚀 EXECUTE &amp; TEST (Build + Verify)</option>
+              <option value="PROPOSE_DIFF">📝 PROPOSE DIFF (Draft Plan/Diff Only)</option>
+              <option value="EXPLORATORY">🔍 EXPLORATORY (Read-Only Research)</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase;">
+              Review Requirement:
+            </label>
+            <select name="review_requirement" class="channel-thread-select" style="width: 100%; margin-top: 4px;">
+              <option value="MANDATORY_HUMAN_REVIEW" selected>🛡️ Mandatory Human Review (NEEDS YOU)</option>
+              <option value="AUTO_ADOPT_IF_GREEN">⚡ Auto-Adopt If Green (Zero Block)</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="margin-top: 10px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <label style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--amber-alert); text-transform: uppercase; font-weight: bold;">
+              Stop Conditions (When MUST agent yield control?):
+            </label>
+            <div style="display: flex; gap: 4px;">
+              <button type="button" class="btn-action" style="font-size: 0.6rem; padding: 1px 4px;" onclick="addStopConditionPreset('Stop if test failures > 1')">+ Test Failure</button>
+              <button type="button" class="btn-action" style="font-size: 0.6rem; padding: 1px 4px;" onclick="addStopConditionPreset('Stop before database migration')">+ DB Migration</button>
+            </div>
+          </div>
+          <input type="text" name="stop_conditions" id="wp-stop-conditions-input" class="search-input" style="width: 100%; margin-top: 4px;" placeholder="e.g. Stop if test failures > 1 or before modifying database schema">
+        </div>
+
+        <div style="margin-top: 10px;">
+          <label style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase;">
+            Explicit Constraints / Boundaries:
+          </label>
+          <input type="text" name="constraints" class="search-input" style="width: 100%; margin-top: 4px;" placeholder="e.g. Preserve backwards compatibility with SQLite; do not touch config.py">
+        </div>
+
+        <div style="margin-top: 10px;">
+          <label style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase;">
+            Expected Evidence of Completion:
+          </label>
+          <input type="text" name="expected_evidence" class="search-input" style="width: 100%; margin-top: 4px;" value="Passing pytest suite (37+ tests) and clean git diff">
+        </div>
+
+        <div style="margin-top: 12px; display: flex; align-items: center; gap: 8px;">
+          <input type="checkbox" name="auto_dispatch" id="wp-auto-dispatch" style="accent-color: var(--codec-green); width: 16px; height: 16px;">
+          <label for="wp-auto-dispatch" style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-bright); cursor: pointer;">
+            Dispatch immediately to active agent (Sets state to <strong>RUNNING</strong>)
+          </label>
+        </div>
+      </div>
+      <div class="codec-modal-footer">
+        <button type="button" class="btn-action" onclick="closeWorkPacketModal()">Cancel</button>
+        <button type="submit" class="btn-action btn-primary">Save Work Packet</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Request Rework Modal -->
+<div id="rework-modal" class="codec-modal" style="display: none;">
+  <div class="codec-modal-content">
+    <div class="codec-modal-header">
+      <span>↺ REQUEST AGENT REWORK</span>
+      <button class="modal-close-btn" onclick="closeReworkModal()">✕</button>
+    </div>
+    <form id="rework-form" method="POST" action="">
+      <div class="codec-modal-body">
+        <label style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase;">
+          Corrective Feedback / What Needs Fixing:
+        </label>
+        <textarea name="rework_feedback" class="modal-textarea" rows="4" placeholder="e.g. Test 3 failed with timeout error. Please optimize the query index and re-run." required></textarea>
+      </div>
+      <div class="codec-modal-footer">
+        <button type="button" class="btn-action" onclick="closeReworkModal()">Cancel</button>
+        <button type="submit" class="btn-action btn-warning">Submit Rework Feedback</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 {% endblock %}
+
 
 

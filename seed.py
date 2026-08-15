@@ -3,7 +3,7 @@ from datetime import datetime, timezone, timedelta
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from config import Config
-from models import Base, Project, Actor, Thread, Surface, Episode, Event, Relation
+from models import Base, Project, Actor, Thread, Surface, Episode, Event, Relation, WorkPacket
 
 def seed_database(engine=None):
     if engine is None:
@@ -249,6 +249,38 @@ def seed_database(engine=None):
     s12 = Surface(thread_id=t7.id, surface_type="IDE", provider="Antigravity", label="Antigravity Pair-Programming Workspace", uri="conversation://codec-dev")
 
     session.add_all([s1, s2, s3, s3b, s4, s5, s6, s7, s8, s9, s10, s11, s12])
+    session.flush()
+
+    # 4b. Sample Work Packets (Horizon 2)
+    wp1 = WorkPacket(
+        thread_id=t1.id,
+        desired_outcome="Refactor raw event ingestion handler with bounded memory queue",
+        constraints="Preserve backward-compatible SQLite schema",
+        stop_conditions="Stop if test failure count > 1 or before modifying database migration files",
+        authority_level="EXECUTE_AND_TEST",
+        expected_evidence="Passing test suite (18/24 passing) and git working set diff",
+        review_requirement="MANDATORY_HUMAN_REVIEW",
+        status="DELIVERED",
+        result_summary="Completed parser handler refactor with fast SQLite projection",
+        result_evidence="PASSED tests/test_cockpit.py\nPASSED tests/test_thread_workspace.py\nDiff: +235/-81 across 5 files",
+        created_at=now - timedelta(hours=2),
+        dispatched_at=now - timedelta(hours=1, minutes=45),
+        completed_at=now - timedelta(minutes=6)
+    )
+
+    wp7 = WorkPacket(
+        thread_id=t7.id,
+        desired_outcome="Build Horizon 2 Work Packet schema, test suite, and UI adoption lifecycle",
+        constraints="Do not modify core database models without migrations; keep backwards compatibility",
+        stop_conditions="Stop if unit test failures > 0",
+        authority_level="EXECUTE_AND_TEST",
+        expected_evidence="Passing pytest suite (41+ tests) and clean git working set",
+        review_requirement="MANDATORY_HUMAN_REVIEW",
+        status="PREPARED",
+        created_at=now - timedelta(minutes=10)
+    )
+
+    session.add_all([wp1, wp7])
     session.flush()
 
     # 5. Events / Chronological Activity Braid for Thread 1 (LAT Refactor)

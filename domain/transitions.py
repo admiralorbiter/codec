@@ -2,7 +2,7 @@ import json
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 from sqlalchemy.orm import Session
-from models import Thread, Event, Episode, Actor, Surface, FrictionLog, Relation, utcnow
+from models import Thread, Event, Episode, Actor, Surface, FrictionLog, Relation, WorkPacket, utcnow
 
 def set_current_focus(db: Session, thread_id: int) -> Thread:
     """Set a single thread as the active cognitive focus."""
@@ -575,5 +575,204 @@ def create_decision_gate(
     db.commit()
     db.refresh(event)
     return event
+
+
+# -------------------------------------------------------------
+# Horizon 2: Work Packet & Dispatch Engine Lifecycle
+# -------------------------------------------------------------
+
+def create_work_packet(
+    db: Session,
+    thread_id: int,
+    desired_outcome: str,
+    constraints: Optional[str] = None,
+    stop_conditions: Optional[str] = None,
+    authority_level: str = "EXECUTE_AND_TEST",
+    expected_evidence: str = "Passing test suite & git working set diff",
+    review_requirement: str = "MANDATORY_HUMAN_REVIEW"
+) -> WorkPacket:
+    """Creates a structured work packet and sets thread state to READY."""
+    thread = db.query(Thread).filter(Thread.id == thread_id).first()
+    if not thread:
+        raise ValueError(f"Thread #{thread_id} not found")
+
+    packet = WorkPacket(
+        thread_id=thread.id,
+        desired_outcome=desired_outcome,
+        constraints=constraints,
+        stop_conditions=stop_conditions,
+        authority_level=authority_level,
+        expected_evidence=expected_evidence,
+        review_requirement=review_requirement,
+        status="PREPARED",
+        created_at=utcnow()
+    )
+    db.add(packet)
+    db.flush()
+
+    thread.state = "READY"
+    thread.frontier = f"Work Packet Prepared: {desired_outcome[:120]}"
+    thread.next_action = f"Dispatch work packet to agent ({authority_level})."
+    thread.last_active_at = utcnow()
+
+    event = Event(
+        thread_id=thread.id,
+        event_type="WORK_PACKET_PREPARED",
+        summary=f"⚡ Work Packet Prepared: {desired_outcome[:80]} (Authority: {authority_level})",
+        payload_json=json.dumps(packet.to_dict()),
+        occurred_at=utcnow()
+    )
+    db.add(event)
+    db.commit()
+    db.refresh(packet)
+    return packet
+
+
+def dispatch_work_packet(
+    db: Session,
+    work_packet_id: int,
+    actor_name: Optional[str] = "Antigravity"
+) -> WorkPacket:
+    """Dispatches a prepared work packet to an agent/process and sets thread to RUNNING."""
+    packet = db.query(WorkPacket).filter(WorkPacket.id == work_packet_id).first()
+    if not packet:
+        raise ValueError(f"WorkPacket #{work_packet_id} not found")
+
+    thread = packet.thread
+    packet.status = "DISPATCHED"
+    packet.dispatched_at = utcnow()
+
+    actor = db.query(Actor).filter(Actor.name == actor_name).first()
+    if not actor:
+        actor = Actor(actor_type="AGENT", name=actor_name or "Antigravity", provider="Local")
+        db.add(actor)
+        db.flush()
+
+    thread.current_actor_id = actor.id
+    thread.state = "RUNNING"
+    thread.frontier = f"Agent executing: {packet.desired_outcome[:100]}"
+    thread.next_action = f"Supervise run; await result delivery from {actor.name}."
+    thread.last_active_at = utcnow()
+
+    event = Event(
+        thread_id=thread.id,
+        event_type="WORK_PACKET_DISPATCHED",
+        summary=f"🚀 Dispatched to {actor.name}: {packet.desired_outcome[:80]}",
+        payload_json=json.dumps(packet.to_dict()),
+        actor_id=actor.id,
+        occurred_at=utcnow()
+    )
+    db.add(event)
+    db.commit()
+    db.refresh(packet)
+    return packet
+
+
+def deliver_work_packet_result(
+    db: Session,
+    work_packet_id: int,
+    result_summary: str,
+    evidence: Optional[str] = None
+) -> WorkPacket:
+    """Delivers machine execution results with evidence, moving thread to NEEDS_YOU for review."""
+    packet = db.query(WorkPacket).filter(WorkPacket.id == work_packet_id).first()
+    if not packet:
+        raise ValueError(f"WorkPacket #{work_packet_id} not found")
+
+    thread = packet.thread
+    packet.status = "DELIVERED"
+    packet.result_summary = result_summary
+    packet.result_evidence = evidence
+    packet.completed_at = utcnow()
+
+    thread.state = "NEEDS_YOU"
+    thread.frontier = f"Result Delivered: {result_summary[:100]}"
+    thread.next_action = "Review agent evidence and click 'Accept & Adopt' or 'Request Rework'."
+    thread.last_active_at = utcnow()
+
+    payload = {
+        "work_packet_id": packet.id,
+        "result_summary": result_summary,
+        "evidence": evidence
+    }
+
+    event = Event(
+        thread_id=thread.id,
+        event_type="RESULT_DELIVERED",
+        summary=f"📦 Result Delivered: {result_summary[:80]}",
+        payload_json=json.dumps(payload),
+        occurred_at=utcnow()
+    )
+    db.add(event)
+    db.commit()
+    db.refresh(packet)
+    return packet
+
+
+def adopt_work_packet_result(
+    db: Session,
+    work_packet_id: int
+) -> WorkPacket:
+    """Adopts delivered work packet result, stamping it canonical and moving thread to READY."""
+    packet = db.query(WorkPacket).filter(WorkPacket.id == work_packet_id).first()
+    if not packet:
+        raise ValueError(f"WorkPacket #{work_packet_id} not found")
+
+    thread = packet.thread
+    packet.status = "ACCEPTED"
+
+    thread.state = "READY"
+    thread.frontier = f"Adopted result: {packet.result_summary or packet.desired_outcome[:80]}."
+    thread.next_action = "Proceed with next objective or define new work packet."
+    thread.last_active_at = utcnow()
+
+    event = Event(
+        thread_id=thread.id,
+        event_type="RESULT_ACCEPTED",
+        summary=f"✓ Adopted Result: {packet.result_summary or packet.desired_outcome[:80]}",
+        payload_json=json.dumps(packet.to_dict()),
+        occurred_at=utcnow()
+    )
+    db.add(event)
+    db.commit()
+    db.refresh(packet)
+    return packet
+
+
+def request_work_packet_rework(
+    db: Session,
+    work_packet_id: int,
+    rework_feedback: str
+) -> WorkPacket:
+    """Requests rework on delivered work packet with specific corrective guidance."""
+    packet = db.query(WorkPacket).filter(WorkPacket.id == work_packet_id).first()
+    if not packet:
+        raise ValueError(f"WorkPacket #{work_packet_id} not found")
+
+    thread = packet.thread
+    packet.status = "REWORK_REQUESTED"
+
+    thread.state = "READY"
+    thread.frontier = f"Rework Requested: {rework_feedback[:100]}"
+    thread.next_action = f"Address rework feedback: {rework_feedback[:80]}."
+    thread.last_active_at = utcnow()
+
+    payload = {
+        "work_packet_id": packet.id,
+        "rework_feedback": rework_feedback
+    }
+
+    event = Event(
+        thread_id=thread.id,
+        event_type="REWORK_REQUESTED",
+        summary=f"↺ Rework Requested: {rework_feedback[:80]}",
+        payload_json=json.dumps(payload),
+        occurred_at=utcnow()
+    )
+    db.add(event)
+    db.commit()
+    db.refresh(packet)
+    return packet
+
 
 

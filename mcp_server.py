@@ -16,7 +16,9 @@ from domain.transitions import (
     set_current_focus,
     accept_result,
     rework_result,
-    add_surface
+    add_surface,
+    create_work_packet,
+    deliver_work_packet_result
 )
 
 class CodecMCPServer:
@@ -95,6 +97,22 @@ class CodecMCPServer:
         with self.get_session() as db:
             thread = resume_thread(db, thread_id)
             return thread.to_dict()
+
+    def get_active_work_packet(self, thread_id: int) -> Dict[str, Any]:
+        with self.get_session() as db:
+            thread = get_thread_by_id(db, thread_id)
+            if not thread:
+                return {'error': f'Thread #{thread_id} not found'}
+            wp = getattr(thread, "active_work_packet", None)
+            if not wp:
+                return {'status': 'none', 'message': 'No active work packet found on thread.'}
+            return {'status': 'ok', 'work_packet': wp.to_dict()}
+
+    def deliver_work_packet(self, thread_id: int, work_packet_id: int, result_summary: str, evidence: Optional[str] = None) -> Dict[str, Any]:
+        with self.get_session() as db:
+            packet = deliver_work_packet_result(db, work_packet_id, result_summary=result_summary, evidence=evidence)
+            return {'status': 'delivered', 'work_packet': packet.to_dict()}
+
 
 if __name__ == '__main__':
     server = CodecMCPServer()

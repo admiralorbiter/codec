@@ -125,6 +125,14 @@ def sync_thread_git_working_set(db: Session, thread_id: int, append_diff_event: 
     thread.working_set_json = json.dumps(merged_ws)
     thread.last_active_at = utcnow()
 
+    # If a new commit was made externally and working tree is now clean, auto-advance frontier
+    old_commit = existing_ws.get('commit')
+    new_commit = live_ws.get('commit')
+    if new_commit and old_commit and new_commit != old_commit and not live_ws.get('is_dirty'):
+        commit_msg = _run_git_command(repo_path, ["log", "-1", "--format=%s"]) or "Checkpoint commit"
+        thread.frontier = f"Checkpointed @{new_commit}: {commit_msg}. Working tree clean."
+        thread.next_action = f"Proceed from checkpoint @{new_commit} or review next architectural milestone."
+
     if append_diff_event and live_ws.get('is_dirty'):
         br = live_ws.get('branch')
         cm = live_ws.get('commit')
