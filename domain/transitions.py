@@ -205,6 +205,9 @@ def close_thread(db: Session, thread_id: int, note: Optional[str] = None) -> Thr
     return thread
 
 
+VALID_THREAD_STATES = {"ACTIVE", "READY", "RUNNING", "NEEDS_YOU", "WAITING", "PARKED", "DONE"}
+VALID_ATTENTION_MODES = {"FOCUS", "INTERACTIVE", "SUPERVISE", "CONSUME"}
+
 def update_thread_frontier(
     db: Session,
     thread_id: int,
@@ -223,9 +226,15 @@ def update_thread_frontier(
     if next_action is not None:
         thread.next_action = next_action.strip() if next_action.strip() else None
     if state is not None and state.strip():
-        thread.state = state.strip().upper()
+        st = state.strip().upper()
+        if st not in VALID_THREAD_STATES:
+            raise ValueError(f"Invalid thread state '{state}'. Must be one of {VALID_THREAD_STATES}")
+        thread.state = st
     if attention_fit is not None and attention_fit.strip():
-        thread.attention_fit = attention_fit.strip().upper()
+        af = attention_fit.strip().upper()
+        if af not in VALID_ATTENTION_MODES:
+            raise ValueError(f"Invalid attention mode '{attention_fit}'. Must be one of {VALID_ATTENTION_MODES}")
+        thread.attention_fit = af
 
     thread.last_active_at = utcnow()
 
@@ -510,6 +519,13 @@ def add_thread_relation(
     note: Optional[str] = None
 ) -> Relation:
     """Link two threads with a semantic dependency relation."""
+    source = db.query(Thread).filter(Thread.id == source_id).first()
+    if not source:
+        raise ValueError(f"Source thread #{source_id} not found.")
+    target = db.query(Thread).filter(Thread.id == target_id).first()
+    if not target:
+        raise ValueError(f"Target thread #{target_id} not found.")
+
     rel = Relation(
         source_type="thread",
         source_id=source_id,
@@ -522,14 +538,10 @@ def add_thread_relation(
     db.add(rel)
     
     # Append relation event to both threads
-    source = db.query(Thread).filter(Thread.id == source_id).first()
-    target = db.query(Thread).filter(Thread.id == target_id).first()
-    target_name = target.name if target else f"#{target_id}"
-    
     ev = Event(
         thread_id=source_id,
         event_type="RELATION_ADDED",
-        summary=f"Linked relation: {relation_type} -> '{target_name}'" + (f" ({note})" if note else ""),
+        summary=f"Linked relation: {relation_type} -> '{target.name}'" + (f" ({note})" if note else ""),
         payload_json=json.dumps({"target_id": target_id, "relation_type": relation_type, "note": note}),
         occurred_at=utcnow()
     )
@@ -554,7 +566,7 @@ def create_decision_gate(
     thread_id: int,
     decision_title: str,
     options: List[Dict[str, Any]],
-    estimated_attention: str = "2–5 min"
+    estimated_attention: str = "2-5 min"
 ) -> Event:
     """
     Creates an interactive decision gate at the frontier of a thread
@@ -590,6 +602,23 @@ def create_decision_gate(
 # -------------------------------------------------------------
 # Horizon 2: Work Packet & Dispatch Engine Lifecycle
 # -------------------------------------------------------------
+
+VALID_WORK_PACKET_TRANSITIONS = {
+    "PREPARED": ["DISPATCHED"],
+    "DISPATCHED": ["DELIVERED"],
+    "DELIVERED": ["ACCEPTED", "REWORK_REQUESTED"],
+    "REWORK_REQUESTED": ["DISPATCHED"],
+    "ACCEPTED": []
+}
+
+def _validate_work_packet_transition(packet: WorkPacket, target_status: str):
+    allowed = VALID_WORK_PACKET_TRANSITIONS.get(packet.status, [])
+    if target_status not in allowed:
+        raise ValueError(
+            f"Invalid WorkPacket transition: Cannot transition from '{packet.status}' to '{target_status}'. "
+            f"Allowed transitions from '{packet.status}': {allowed}"
+        )
+
 
 def create_work_packet(
     db: Session,
@@ -649,6 +678,9 @@ def dispatch_work_packet(
     if not packet:
         raise ValueError(f"WorkPacket #{work_packet_id} not found")
 
+    # Enforce state machine transition
+    _validate_work_packet_transition(packet, "DISPATCHED")
+
     thread = packet.thread
     packet.status = "DISPATCHED"
     packet.dispatched_at = utcnow()
@@ -684,12 +716,20 @@ def deliver_work_packet_result(
     db: Session,
     work_packet_id: int,
     result_summary: str,
-    evidence: Optional[str] = None
+    evidence: Optional[str] = None,
+    thread_id: Optional[int] = None
 ) -> WorkPacket:
     """Delivers machine execution results with evidence, moving thread to NEEDS_YOU for review."""
     packet = db.query(WorkPacket).filter(WorkPacket.id == work_packet_id).first()
     if not packet:
         raise ValueError(f"WorkPacket #{work_packet_id} not found")
+
+    # Enforce thread ownership
+    if thread_id is not None and packet.thread_id != thread_id:
+        raise ValueError(f"WorkPacket #{work_packet_id} belongs to thread #{packet.thread_id}, not #{thread_id}")
+
+    # Enforce state machine transition
+    _validate_work_packet_transition(packet, "DELIVERED")
 
     thread = packet.thread
     packet.status = "DELIVERED"
@@ -731,6 +771,9 @@ def adopt_work_packet_result(
     if not packet:
         raise ValueError(f"WorkPacket #{work_packet_id} not found")
 
+    # Enforce state machine transition
+    _validate_work_packet_transition(packet, "ACCEPTED")
+
     thread = packet.thread
     packet.status = "ACCEPTED"
 
@@ -763,6 +806,9 @@ def request_work_packet_rework(
     if not packet:
         raise ValueError(f"WorkPacket #{work_packet_id} not found")
 
+    # Enforce state machine transition
+    _validate_work_packet_transition(packet, "REWORK_REQUESTED")
+
     thread = packet.thread
     packet.status = "REWORK_REQUESTED"
 
@@ -788,6 +834,3 @@ def request_work_packet_rework(
     db.refresh(packet)
     broadcaster.broadcast("REWORK_REQUESTED", packet.to_dict(), thread_id=thread.id)
     return packet
-
-
-

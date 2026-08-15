@@ -111,11 +111,11 @@ class CodecMCPServer:
 
     def deliver_work_packet(self, thread_id: int, work_packet_id: int, result_summary: str, evidence: Optional[str] = None) -> Dict[str, Any]:
         with self.get_session() as db:
-            packet = deliver_work_packet_result(db, work_packet_id, result_summary=result_summary, evidence=evidence)
+            packet = deliver_work_packet_result(db, work_packet_id, result_summary=result_summary, evidence=evidence, thread_id=thread_id)
             return {'status': 'delivered', 'work_packet': packet.to_dict()}
 
     def report_progress(self, thread_id: int, step_name: str, current_step: int = 1, total_steps: int = 1, log_snippet: Optional[str] = None) -> Dict[str, Any]:
-        """Broadcasts live step-by-step agent execution progress to the user's open browser session."""
+        """Broadcasts live step-by-step agent execution progress across processes to the user's browser."""
         telemetry_payload = {
             "thread_id": thread_id,
             "step_name": step_name,
@@ -124,7 +124,24 @@ class CodecMCPServer:
             "log_snippet": log_snippet or "",
             "actor_name": "Antigravity"
         }
+
+        # 1. In-process broadcast (for test suites and embedded servers)
         broadcaster.broadcast("AGENT_TELEMETRY", telemetry_payload, thread_id=thread_id)
+
+        # 2. Post to local HTTP API for cross-process SSE broadcast to browser
+        try:
+            import urllib.request
+            req = urllib.request.Request(
+                "http://127.0.0.1:5050/api/agent/telemetry",
+                data=json.dumps(telemetry_payload).encode("utf-8"),
+                headers={"Content-Type": "application/json", "Origin": "http://127.0.0.1:5050"},
+                method="POST"
+            )
+            with urllib.request.urlopen(req, timeout=0.5) as resp:
+                pass
+        except Exception:
+            pass
+
         return {'status': 'broadcasted', 'telemetry': telemetry_payload}
 
     def sync_active_session(self, thread_id: int, active_file: str, current_task: Optional[str] = None) -> Dict[str, Any]:
@@ -148,8 +165,200 @@ class CodecMCPServer:
             return {'status': 'synced', 'working_set': ws, 'event': event.to_dict()}
 
 
+# -------------------------------------------------------------
+# Standard MCP JSON-RPC 2.0 Stdio Transport Protocol Loop
+# -------------------------------------------------------------
+
+def run_mcp_stdio_server(db_uri: Optional[str] = None):
+    """
+    Standard MCP stdio transport loop. Listens on stdin and writes JSON-RPC 2.0 to stdout.
+    Compatible with Antigravity, Claude Desktop, and standard MCP clients.
+    """
+    server = CodecMCPServer(db_uri=db_uri)
+
+    tools_spec = [
+        {
+            "name": "list_threads",
+            "description": "Lists active threads from Codec cognitive control plane.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "domain": {"type": "string", "description": "Optional domain filter (Professional, Research, Creative, Personal)"},
+                    "include_parked": {"type": "boolean", "default": True}
+                }
+            }
+        },
+        {
+            "name": "get_thread_briefing",
+            "description": "Retrieves the full cognitive briefing capsule for a thread (frontier, next move, why work stopped, working set).",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "thread_id": {"type": "integer", "description": "Thread ID"}
+                },
+                "required": ["thread_id"]
+            }
+        },
+        {
+            "name": "get_active_work_packet",
+            "description": "Reads the active delegated work packet with stop conditions and authority level.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "thread_id": {"type": "integer", "description": "Thread ID"}
+                },
+                "required": ["thread_id"]
+            }
+        },
+        {
+            "name": "report_progress",
+            "description": "Broadcasts live step-by-step agent execution progress and test output to the user's open cockpit tab in real time.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "thread_id": {"type": "integer", "description": "Thread ID"},
+                    "step_name": {"type": "string", "description": "Current action being performed (e.g. 'Running pytest suite')"},
+                    "current_step": {"type": "integer", "default": 1},
+                    "total_steps": {"type": "integer", "default": 1},
+                    "log_snippet": {"type": "string", "description": "Recent output tail or test results"}
+                },
+                "required": ["thread_id", "step_name"]
+            }
+        },
+        {
+            "name": "deliver_work_packet",
+            "description": "Delivers completed work packet results with evidence into Codec and requests human review in NEEDS_YOU.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "thread_id": {"type": "integer", "description": "Thread ID"},
+                    "work_packet_id": {"type": "integer", "description": "Work Packet ID"},
+                    "result_summary": {"type": "string", "description": "Summary of delivered changes"},
+                    "evidence": {"type": "string", "description": "Evidence (test stdout, diff stats)"}
+                },
+                "required": ["thread_id", "work_packet_id", "result_summary"]
+            }
+        },
+        {
+            "name": "update_frontier",
+            "description": "Updates the frontier description and immediate first move on a thread.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "thread_id": {"type": "integer", "description": "Thread ID"},
+                    "frontier": {"type": "string", "description": "Updated frontier state"},
+                    "next_action": {"type": "string", "description": "Immediate concrete next move"}
+                },
+                "required": ["thread_id"]
+            }
+        },
+        {
+            "name": "sync_active_session",
+            "description": "Syncs the active file and task into the thread's working set.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "thread_id": {"type": "integer", "description": "Thread ID"},
+                    "active_file": {"type": "string", "description": "Active relative file path"},
+                    "current_task": {"type": "string", "description": "Short description of current task"}
+                },
+                "required": ["thread_id", "active_file"]
+            }
+        }
+    ]
+
+    for line in sys.stdin:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            req = json.loads(line)
+            req_id = req.get("id")
+            method = req.get("method")
+            params = req.get("params", {})
+
+            if method == "initialize":
+                res = {
+                    "jsonrpc": "2.0",
+                    "id": req_id,
+                    "result": {
+                        "protocolVersion": "2024-11-05",
+                        "capabilities": {"tools": {}},
+                        "serverInfo": {"name": "codec-control-plane", "version": "0.3.0"}
+                    }
+                }
+            elif method == "notifications/initialized":
+                continue
+            elif method == "ping":
+                res = {"jsonrpc": "2.0", "id": req_id, "result": {}}
+            elif method == "tools/list":
+                res = {"jsonrpc": "2.0", "id": req_id, "result": {"tools": tools_spec}}
+            elif method == "tools/call":
+                tool_name = params.get("name")
+                args = params.get("arguments", {})
+
+                if tool_name == "list_threads":
+                    out = server.list_threads(domain=args.get("domain"), include_parked=args.get("include_parked", True))
+                elif tool_name == "get_thread_briefing":
+                    out = server.get_thread_briefing(thread_id=args.get("thread_id"))
+                elif tool_name == "get_active_work_packet":
+                    out = server.get_active_work_packet(thread_id=args.get("thread_id"))
+                elif tool_name == "report_progress":
+                    out = server.report_progress(
+                        thread_id=args.get("thread_id"),
+                        step_name=args.get("step_name"),
+                        current_step=args.get("current_step", 1),
+                        total_steps=args.get("total_steps", 1),
+                        log_snippet=args.get("log_snippet")
+                    )
+                elif tool_name == "deliver_work_packet":
+                    out = server.deliver_work_packet(
+                        thread_id=args.get("thread_id"),
+                        work_packet_id=args.get("work_packet_id"),
+                        result_summary=args.get("result_summary"),
+                        evidence=args.get("evidence")
+                    )
+                elif tool_name == "update_frontier":
+                    out = server.update_frontier(
+                        thread_id=args.get("thread_id"),
+                        frontier=args.get("frontier"),
+                        next_action=args.get("next_action")
+                    )
+                elif tool_name == "sync_active_session":
+                    out = server.sync_active_session(
+                        thread_id=args.get("thread_id"),
+                        active_file=args.get("active_file"),
+                        current_task=args.get("current_task")
+                    )
+                else:
+                    out = {"error": f"Unknown tool: {tool_name}"}
+
+                res = {
+                    "jsonrpc": "2.0",
+                    "id": req_id,
+                    "result": {
+                        "content": [{"type": "text", "text": json.dumps(out)}]
+                    }
+                }
+            else:
+                res = {
+                    "jsonrpc": "2.0",
+                    "id": req_id,
+                    "error": {"code": -32601, "message": f"Method {method} not found"}
+                }
+
+            sys.stdout.write(json.dumps(res) + "\n")
+            sys.stdout.flush()
+        except Exception as e:
+            err_res = {
+                "jsonrpc": "2.0",
+                "id": None,
+                "error": {"code": -32603, "message": f"Internal MCP server error: {str(e)}"}
+            }
+            sys.stdout.write(json.dumps(err_res) + "\n")
+            sys.stdout.flush()
+
 
 if __name__ == '__main__':
-    server = CodecMCPServer()
-    threads = server.list_threads()
-    print(f'Codec MCP Server initialized. Found {len(threads)} living threads.')
+    run_mcp_stdio_server()
+

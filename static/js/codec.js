@@ -527,11 +527,22 @@ function showTacticalToast(message, isMeiLing = false) {
     document.body.appendChild(toast);
   }
   
+  toast.textContent = '';
+  const headerDiv = document.createElement('div');
+  headerDiv.style.fontSize = '0.7rem';
+  headerDiv.style.marginBottom = '4px';
   if (isMeiLing) {
-    toast.innerHTML = `<div style="color: var(--amber-alert); font-size: 0.7rem; margin-bottom: 4px;">📻 MEI LING // FREQ 140.96</div>${message}`;
+    headerDiv.style.color = 'var(--amber-alert)';
+    headerDiv.textContent = '📻 MEI LING // FREQ 140.96';
   } else {
-    toast.innerHTML = `<div style="color: var(--text-dim); font-size: 0.7rem; margin-bottom: 4px;">⚡ CODEC // FREQ 140.85</div>${message}`;
+    headerDiv.style.color = 'var(--text-dim)';
+    headerDiv.textContent = '⚡ CODEC // FREQ 140.85';
   }
+  toast.appendChild(headerDiv);
+
+  const msgDiv = document.createElement('div');
+  msgDiv.textContent = message;
+  toast.appendChild(msgDiv);
   
   toast.style.display = 'block';
   setTimeout(() => {
@@ -619,9 +630,108 @@ function fetchChannelThread(channelNum, threadId) {
 }
 
 // -------------------------------------------------------------
-// Horizon 3: Live Real-Time Telemetry & Event Streaming
+// Horizon 3: Live Real-Time Telemetry & Surgical Event Streaming
 // -------------------------------------------------------------
 let globalEventSource = null;
+
+function appendBraidEventDOM(eventData) {
+  const timeline = document.querySelector('.braid-timeline');
+  if (!timeline) return;
+
+  const node = document.createElement('div');
+  node.className = 'braid-node';
+  node.style.animation = 'pulseGlow 1.5s ease';
+  
+  const icon = document.createElement('div');
+  icon.className = 'braid-node-icon';
+  icon.textContent = '⚡';
+  
+  const content = document.createElement('div');
+  content.className = 'braid-node-content';
+  
+  const header = document.createElement('div');
+  header.className = 'braid-node-header';
+  
+  const actorSpan = document.createElement('span');
+  actorSpan.className = 'braid-actor';
+  actorSpan.textContent = eventData.actor || 'SYSTEM';
+  
+  const typeSpan = document.createElement('span');
+  typeSpan.className = 'braid-type';
+  typeSpan.textContent = eventData.event_type || 'EVENT';
+  
+  const timeSpan = document.createElement('span');
+  timeSpan.className = 'braid-time';
+  timeSpan.textContent = 'just now';
+  
+  header.appendChild(actorSpan);
+  header.appendChild(typeSpan);
+  header.appendChild(timeSpan);
+  
+  const summaryDiv = document.createElement('div');
+  summaryDiv.className = 'braid-node-summary';
+  summaryDiv.textContent = eventData.summary || '';
+  
+  content.appendChild(header);
+  content.appendChild(summaryDiv);
+  node.appendChild(icon);
+  node.appendChild(content);
+
+  const frontier = timeline.querySelector('.braid-node-frontier');
+  if (frontier) {
+    timeline.insertBefore(node, frontier);
+  } else {
+    timeline.appendChild(node);
+  }
+}
+
+function updateFrontierDOM(frontierData) {
+  const frontierText = document.querySelector('.frontier-node-text, .card-frontier-text');
+  if (frontierText && frontierData.frontier) {
+    frontierText.textContent = frontierData.frontier;
+    frontierText.style.transition = 'all 0.5s ease';
+    frontierText.style.color = 'var(--codec-green)';
+  }
+  const nextMoveText = document.querySelector('.first-move-text, .card-first-move');
+  if (nextMoveText && frontierData.next_action) {
+    nextMoveText.textContent = frontierData.next_action;
+  }
+}
+
+function updateAgentTelemetryDOM(payload) {
+  const telemetryBox = document.getElementById('agent-telemetry-status');
+  if (!telemetryBox) return;
+
+  telemetryBox.textContent = '';
+  const statusRow = document.createElement('div');
+  statusRow.style.display = 'flex';
+  statusRow.style.alignItems = 'center';
+  statusRow.style.gap = '8px';
+  statusRow.style.fontSize = '0.75rem';
+  statusRow.style.color = 'var(--codec-green)';
+
+  const pulse = document.createElement('span');
+  pulse.className = 'running-pulse-indicator';
+
+  const strong = document.createElement('strong');
+  strong.textContent = payload.actor_name || 'Antigravity';
+
+  const stepText = document.createElement('span');
+  stepText.textContent = ` [Step ${payload.step_index}/${payload.total_steps}]: ${payload.step_name}`;
+
+  statusRow.appendChild(pulse);
+  statusRow.appendChild(strong);
+  statusRow.appendChild(stepText);
+  telemetryBox.appendChild(statusRow);
+
+  if (payload.log_snippet) {
+    const pre = document.createElement('pre');
+    pre.style.cssText = 'font-size: 0.68rem; color: var(--text-dim); margin-top: 4px; max-height: 80px; overflow-y: auto;';
+    pre.textContent = payload.log_snippet;
+    telemetryBox.appendChild(pre);
+  }
+  telemetryBox.style.display = 'block';
+}
 
 function initLiveStream(threadId) {
   const url = threadId ? `/threads/${threadId}/stream` : '/api/stream';
@@ -632,10 +742,10 @@ function initLiveStream(threadId) {
   try {
     globalEventSource = new EventSource(url);
 
-    globalEventSource.addEventListener('CONNECTED', (e) => {
+    globalEventSource.addEventListener('CONNECTED', () => {
       const badge = document.getElementById('live-stream-badge');
       if (badge) {
-        badge.innerHTML = '🟢 LIVE STREAMING';
+        badge.textContent = '🟢 LIVE STREAMING';
         badge.style.color = 'var(--codec-green)';
         badge.style.borderColor = 'var(--codec-green)';
       }
@@ -645,48 +755,32 @@ function initLiveStream(threadId) {
       const data = JSON.parse(e.data);
       playAlertSound();
       showTacticalToast(`📡 Live Event: ${data.payload.summary}`);
-      setTimeout(() => {
-        window.location.reload();
-      }, 700);
+      appendBraidEventDOM(data.payload);
     });
 
     globalEventSource.addEventListener('FRONTIER_UPDATED', (e) => {
       const data = JSON.parse(e.data);
       showTacticalToast(`🎯 Frontier Advanced: ${data.payload.frontier ? data.payload.frontier.substring(0, 50) : 'Updated'}`);
-      setTimeout(() => {
-        window.location.reload();
-      }, 700);
+      updateFrontierDOM(data.payload);
     });
 
     globalEventSource.addEventListener('AGENT_TELEMETRY', (e) => {
       const data = JSON.parse(e.data);
       const payload = data.payload;
-      const telemetryBox = document.getElementById('agent-telemetry-status');
-      if (telemetryBox) {
-        telemetryBox.innerHTML = `
-          <div style="display: flex; align-items: center; gap: 8px; font-size: 0.75rem; color: var(--codec-green);">
-            <span class="running-pulse-indicator"></span>
-            <strong>${payload.actor_name || 'Antigravity'}</strong> [Step ${payload.step_index}/${payload.total_steps}]: ${payload.step_name}
-          </div>
-          ${payload.log_snippet ? `<pre style="font-size: 0.68rem; color: var(--text-dim); margin-top: 4px; max-height: 80px; overflow-y: auto;">${payload.log_snippet}</pre>` : ''}
-        `;
-        telemetryBox.style.display = 'block';
-      }
+      updateAgentTelemetryDOM(payload);
       showTacticalToast(`🤖 ${payload.actor_name || 'Agent'} [Step ${payload.step_index}/${payload.total_steps}]: ${payload.step_name}`);
     });
 
     globalEventSource.addEventListener('RESULT_DELIVERED', (e) => {
       playCodecRing();
       showTacticalToast('📦 Result Delivered! Human Review Required (NEEDS YOU)', true);
-      setTimeout(() => {
-        window.location.reload();
-      }, 700);
+      updateFrontierDOM(e.data ? JSON.parse(e.data).payload : {});
     });
 
     globalEventSource.onerror = () => {
       const badge = document.getElementById('live-stream-badge');
       if (badge) {
-        badge.innerHTML = '🟡 RECONNECTING...';
+        badge.textContent = '🟡 RECONNECTING...';
         badge.style.color = 'var(--amber-alert)';
         badge.style.borderColor = 'var(--amber-alert)';
       }

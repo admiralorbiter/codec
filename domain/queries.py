@@ -241,7 +241,11 @@ def generate_smart_commit_message(thread: Thread) -> str:
     ctype = "feat"
     summary = ""
 
-    if "horizon3" in changed_str or "sse" in changed_str:
+    if "stabilization" in changed_str or "migration" in changed_str or "security" in changed_str:
+        ctype = "fix"
+        scope = "stabilization"
+        summary = "security hardening, fail-closed git controls, and work packet lifecycle enforcement"
+    elif "horizon3" in changed_str or "sse" in changed_str:
         scope = "horizon3"
         summary = "antigravity live agent telemetry and real-time sse streaming"
     elif "horizon2" in changed_str:

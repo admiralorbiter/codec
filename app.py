@@ -51,6 +51,7 @@ from domain.git_service import (
     inspect_git_working_set,
     git_commit_working_set
 )
+from domain.migrations import run_migrations
 from seed import seed_database
 
 def create_app(config_class=Config):
@@ -60,9 +61,21 @@ def create_app(config_class=Config):
     engine = create_engine(app.config["SQLALCHEMY_DATABASE_URI"])
     db_session = scoped_session(sessionmaker(bind=engine))
 
+    # Apply database schema migrations on startup
+    db_uri = app.config.get("SQLALCHEMY_DATABASE_URI", "")
+    if db_uri.startswith("sqlite:///"):
+        run_migrations(db_uri.replace("sqlite:///", ""))
+
     @app.before_request
     def before_request():
         g.db = db_session()
+        # Security: Validate Origin/Referer on state-mutating requests to protect localhost
+        if request.method in ("POST", "PUT", "DELETE") and not app.config.get("TESTING"):
+            origin = request.headers.get("Origin") or request.headers.get("Referer")
+            if origin:
+                allowed = app.config.get("ALLOWED_ORIGINS", [])
+                if not any(origin.startswith(a) for a in allowed):
+                    abort(403, description="Cross-origin state mutation forbidden")
 
     @app.teardown_appcontext
     def shutdown_session(exception=None):
@@ -426,11 +439,17 @@ def create_app(config_class=Config):
             abort(404)
 
         ws = thread.get_working_set()
-        repo_path = ws.get("repo_path") or "."
-        for s in thread.surfaces:
-            if s.local_path and os.path.exists(s.local_path):
-                repo_path = s.local_path
-                break
+        repo_path = None
+        if ws.get("repo_path") and os.path.exists(os.path.join(ws.get("repo_path"), ".git")):
+            repo_path = ws.get("repo_path")
+        else:
+            for s in thread.surfaces:
+                if s.local_path and os.path.exists(os.path.join(s.local_path, ".git")):
+                    repo_path = s.local_path
+                    break
+
+        if not repo_path:
+            abort(400, description="No verified Git repository attached to this thread.")
 
         res = git_commit_working_set(repo_path, commit_message, do_push=do_push)
 

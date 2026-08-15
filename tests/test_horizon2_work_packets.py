@@ -97,7 +97,20 @@ def test_work_packet_lifecycle_domain(app):
     assert thread.queue == 'READY'
     assert 'Rework Requested' in thread.frontier
 
-    # 5. Adopt result
+    # 5. Redispatch after rework
+    wp = dispatch_work_packet(session, wp.id, actor_name='Antigravity')
+    assert wp.status == 'DISPATCHED'
+
+    # 6. Redeliver corrected result
+    wp = deliver_work_packet_result(
+        session,
+        wp.id,
+        result_summary='Added stop-condition preset helper buttons',
+        evidence='UI buttons tested'
+    )
+    assert wp.status == 'DELIVERED'
+
+    # 7. Adopt validated result
     wp = adopt_work_packet_result(session, wp.id)
     assert wp.status == 'ACCEPTED'
     session.refresh(thread)
@@ -181,6 +194,7 @@ def test_mcp_server_work_packet_integration(app):
         thread_id=1,
         desired_outcome='MCP Autonomous Work Packet Test'
     )
+    wp = dispatch_work_packet(session, wp.id, actor_name='Antigravity')
     wp_id = wp.id
     session.close()
 

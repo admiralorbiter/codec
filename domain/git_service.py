@@ -125,13 +125,18 @@ def sync_thread_git_working_set(db: Session, thread_id: int, append_diff_event: 
     thread.working_set_json = json.dumps(merged_ws)
     thread.last_active_at = utcnow()
 
-    # If a new commit was made externally and working tree is now clean, auto-advance frontier
+    # Record external checkpoint event without overwriting cognitive frontier
     old_commit = existing_ws.get('commit')
     new_commit = live_ws.get('commit')
     if new_commit and old_commit and new_commit != old_commit and not live_ws.get('is_dirty'):
         commit_msg = _run_git_command(repo_path, ["log", "-1", "--format=%s"]) or "Checkpoint commit"
-        thread.frontier = f"Checkpointed @{new_commit}: {commit_msg}. Working tree clean."
-        thread.next_action = f"Proceed from checkpoint @{new_commit} or review next architectural milestone."
+        ev = Event(
+            thread_id=thread.id,
+            event_type="CHECKPOINT_DETECTED",
+            summary=f"External git commit detected: @{new_commit} — {commit_msg}",
+            occurred_at=utcnow()
+        )
+        db.add(ev)
 
     if append_diff_event and live_ws.get('is_dirty'):
         br = live_ws.get('branch')
@@ -156,29 +161,41 @@ def sync_thread_git_working_set(db: Session, thread_id: int, append_diff_event: 
 
 def git_commit_working_set(repo_path: str, commit_message: str, do_push: bool = False) -> Dict[str, Any]:
     """
-    Stages all changes, creates a Git commit, optionally pushes,
-    and returns status with the new commit hash.
+    Fail-closed git staging, commit, and push.
+    Verifies that a valid repository exists and that staging succeeded before committing.
     """
-    if not repo_path or not os.path.exists(repo_path):
-        return {"error": "Invalid repository path", "status": "failed"}
+    if not repo_path or not os.path.exists(repo_path) or not os.path.exists(os.path.join(repo_path, ".git")):
+        return {"error": "No verified Git repository attached to thread", "status": "failed"}
 
-    # 1. Stage all changes
-    _run_git_command(repo_path, ["add", "-A"])
+    # 1. Stage all changes and verify staging success
+    try:
+        res_add = subprocess.run(
+            ["git", "add", "-A"],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            timeout=3.0
+        )
+        if res_add.returncode != 0:
+            return {"error": f"Git staging failed: {res_add.stderr.strip()}", "status": "failed"}
+    except Exception as e:
+        return {"error": f"Git staging execution error: {str(e)}", "status": "failed"}
 
-    # 2. Create commit
+    # 2. Check if working tree has staged changes
+    status_out = _run_git_command(repo_path, ["status", "--porcelain"])
+    if not status_out:
+        cur_commit = _run_git_command(repo_path, ["rev-parse", "--short", "HEAD"])
+        return {"status": "clean", "commit": cur_commit, "message": "Nothing to commit, working tree clean"}
+
+    # 3. Create commit
     commit_res = _run_git_command(repo_path, ["commit", "-m", commit_message.strip()])
     if commit_res is None:
-        # Check if working tree was already clean
-        status_out = _run_git_command(repo_path, ["status", "--porcelain"])
-        if not status_out:
-            cur_commit = _run_git_command(repo_path, ["rev-parse", "--short", "HEAD"])
-            return {"status": "clean", "commit": cur_commit, "message": "Nothing to commit, working tree clean"}
-        return {"error": "Git commit failed", "status": "failed"}
+        return {"error": "Git commit execution failed", "status": "failed"}
 
-    # 3. Get new short commit hash
+    # 4. Get new short commit hash
     new_commit = _run_git_command(repo_path, ["rev-parse", "--short", "HEAD"])
 
-    # 4. Optional push
+    # 5. Optional push
     pushed = False
     if do_push:
         push_res = _run_git_command(repo_path, ["push"])
@@ -194,5 +211,6 @@ def git_commit_working_set(repo_path: str, commit_message: str, do_push: bool = 
         "message": commit_message,
         "pushed": pushed
     }
+
 
 
