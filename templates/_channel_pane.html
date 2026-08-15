@@ -1,3 +1,4 @@
+{% if thread %}
 <div class="channel-pane {% if thread.is_current_focus %}channel-focus{% endif %}" id="channel-pane-{{ channel_num }}">
   
   <!-- Channel Tactical Header -->
@@ -120,3 +121,57 @@
   </div>
 
 </div>
+{% else %}
+<div class="channel-pane channel-standby" id="channel-pane-{{ channel_num }}">
+  
+  <!-- Channel Tactical Header -->
+  <div class="channel-header">
+    <div class="channel-header-top">
+      <div class="channel-freq-badge">
+        <span class="pulse-dot" style="background: var(--text-dim);"></span>
+        <span class="freq-tag">CH {{ channel_num }} // {{ freq }}</span>
+      </div>
+
+      <div class="channel-header-actions">
+        <span class="badge" style="background: var(--bg-deep); color: var(--text-dim);">STANDBY</span>
+      </div>
+    </div>
+
+    <!-- Thread Dropdown Selector / Hot-Swap (if living threads exist) -->
+    <div class="channel-thread-bar">
+      {% if all_living_threads %}
+      <select class="channel-thread-select"
+              onchange="fetchChannelThread('{{ channel_num }}', this.value)">
+        <option value="" disabled selected>-- Assign Thread to CH {{ channel_num }} --</option>
+        {% for t in all_living_threads %}
+        <option value="{{ t.id }}">
+          #{{ t.id }} {{ t.project.name if t.project else 'General' }} &middot; {{ t.name }} [{{ t.state }}]
+        </option>
+        {% endfor %}
+      </select>
+      {% else %}
+      <div style="font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-dim); padding: 4px 2px;">
+        [ NO LIVING THREADS ACTIVE ]
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Scrollable Empty State Area -->
+  <div class="channel-braid-scroll" style="display: flex; align-items: center; justify-content: center; text-align: center; padding: 2rem;">
+    <div class="channel-empty-state">
+      <div style="font-size: 1.5rem; margin-bottom: 0.5rem; opacity: 0.5;">⚡</div>
+      <div style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase;">
+        COMMS CHANNEL {{ channel_num }} STANDBY
+      </div>
+      <div style="font-size: 0.75rem; color: var(--text-dim); margin-top: 0.35rem; max-width: 240px; line-height: 1.4;">
+        No active work thread linked to frequency {{ freq }}.
+      </div>
+      <button class="btn-action btn-primary" style="margin-top: 1.25rem; font-size: 0.75rem;" onclick="openNewThreadModal()">
+        + INITIALIZE THREAD
+      </button>
+    </div>
+  </div>
+
+</div>
+{% endif %}

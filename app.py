@@ -21,7 +21,16 @@ from domain.transitions import (
     park_thread,
     resume_thread,
     make_decision,
-    append_event
+    append_event,
+    close_thread,
+    update_thread_frontier,
+    accept_result,
+    rework_result,
+    add_surface,
+    delete_surface,
+    parse_capture_transcript,
+    commit_capture,
+    log_friction
 )
 from seed import seed_database
 
@@ -169,11 +178,11 @@ def create_app(config_class=Config):
 
         for i in range(cols):
             param_key = f"ch{i+1}"
-            default_id = all_threads[i].id if i < len(all_threads) else (all_threads[0].id if all_threads else 1)
+            default_id = all_threads[i].id if i < len(all_threads) else (all_threads[0].id if all_threads else None)
             t_id = request.args.get(param_key, default=default_id, type=int)
             channel_thread_ids.append(t_id)
 
-            t = get_thread_by_id(g.db, t_id) or (all_threads[0] if all_threads else None)
+            t = get_thread_by_id(g.db, t_id) if t_id else (all_threads[0] if all_threads else None)
             channels.append({
                 "thread": t,
                 "freq": freq_presets[i % len(freq_presets)],
@@ -283,6 +292,9 @@ def create_app(config_class=Config):
         if not name:
             return redirect(url_for("cockpit"))
 
+        # Reset any existing current focus
+        g.db.query(Thread).filter(Thread.is_current_focus == True).update({"is_current_focus": False})
+
         thread = Thread(
             name=name,
             intent=intent or None,
@@ -300,6 +312,101 @@ def create_app(config_class=Config):
         # Append creation event
         append_event(g.db, thread.id, event_type="THREAD_CREATED", summary=f"Thread '{name}' created.")
         return redirect(url_for("thread_workspace_view", thread_id=thread.id))
+
+
+    @app.route("/threads/<int:thread_id>/close", methods=["POST"])
+    def thread_close_action(thread_id: int):
+        note = request.form.get("note")
+        close_thread(g.db, thread_id, note=note)
+        if request.headers.get("HX-Request"):
+            return redirect(url_for("cockpit"))
+        return redirect(url_for("cockpit"))
+
+    @app.route("/threads/<int:thread_id>/update", methods=["POST"])
+    def thread_update_action(thread_id: int):
+        frontier = request.form.get("frontier")
+        next_action = request.form.get("next_action")
+        state = request.form.get("state")
+        attention_fit = request.form.get("attention_fit")
+        thread = update_thread_frontier(
+            g.db, thread_id,
+            frontier=frontier,
+            next_action=next_action,
+            state=state,
+            attention_fit=attention_fit
+        )
+        if request.headers.get("HX-Request"):
+            return render_template("_thread_drawer.html", thread=thread)
+        return redirect(url_for("thread_workspace_view", thread_id=thread_id))
+
+    @app.route("/threads/<int:thread_id>/accept", methods=["POST"])
+    def thread_accept_action(thread_id: int):
+        note = request.form.get("note")
+        updated_frontier = request.form.get("frontier")
+        thread = accept_result(g.db, thread_id, note=note, updated_frontier=updated_frontier)
+        if request.headers.get("HX-Request"):
+            return render_template("_thread_drawer.html", thread=thread)
+        return redirect(url_for("thread_workspace_view", thread_id=thread_id))
+
+    @app.route("/threads/<int:thread_id>/rework", methods=["POST"])
+    def thread_rework_action(thread_id: int):
+        feedback = request.form.get("feedback", "Rework requested.")
+        thread = rework_result(g.db, thread_id, feedback=feedback)
+        if request.headers.get("HX-Request"):
+            return render_template("_thread_drawer.html", thread=thread)
+        return redirect(url_for("thread_workspace_view", thread_id=thread_id))
+
+    @app.route("/threads/<int:thread_id>/surfaces", methods=["POST"])
+    def thread_add_surface(thread_id: int):
+        surface_type = request.form.get("surface_type", "OTHER")
+        label = request.form.get("label", "").strip()
+        uri = request.form.get("uri", "").strip()
+        local_path = request.form.get("local_path", "").strip()
+        provider = request.form.get("provider", "").strip()
+        if label:
+            add_surface(g.db, thread_id, surface_type=surface_type, label=label, uri=uri, local_path=local_path, provider=provider)
+        thread = get_thread_by_id(g.db, thread_id)
+        if request.headers.get("HX-Request"):
+            return render_template("_thread_drawer.html", thread=thread)
+        return redirect(url_for("thread_workspace_view", thread_id=thread_id))
+
+    @app.route("/surfaces/<int:surface_id>/delete", methods=["POST"])
+    def surface_delete(surface_id: int):
+        thread_id = request.form.get("thread_id", type=int)
+        delete_surface(g.db, surface_id)
+        if thread_id:
+            return redirect(url_for("thread_workspace_view", thread_id=thread_id))
+        return redirect(url_for("cockpit"))
+
+    # -------------------------------------------------------------
+    # Universal Capture & Friction Logging Endpoints
+    # -------------------------------------------------------------
+
+    @app.route("/capture/preview", methods=["POST"])
+    def capture_preview():
+        data = request.get_json() if request.is_json else request.form
+        transcript = data.get("transcript", "")
+        proposal = parse_capture_transcript(g.db, transcript)
+        return jsonify(proposal)
+
+    @app.route("/capture/commit", methods=["POST"])
+    def capture_commit():
+        data = request.get_json() if request.is_json else request.form.to_dict()
+        thread = commit_capture(g.db, data)
+        if request.is_json:
+            return jsonify({"status": "ok", "thread_id": thread.id, "redirect_url": url_for("thread_workspace_view", thread_id=thread.id)})
+        return redirect(url_for("thread_workspace_view", thread_id=thread.id))
+
+    @app.route("/friction", methods=["POST"])
+    def record_friction():
+        note = request.form.get("note", "").strip()
+        category = request.form.get("category", "FRICTION")
+        page_url = request.form.get("page_url")
+        thread_id = request.form.get("thread_id", type=int)
+        if note:
+            log_friction(g.db, note=note, category=category, page_url=page_url, thread_id=thread_id)
+        return jsonify({"status": "recorded", "message": "Friction logged. Thank you for the telemetry."})
+
 
     # -------------------------------------------------------------
     # REST APIs

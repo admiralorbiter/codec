@@ -15,15 +15,15 @@
     <!-- Column Layout Preset Selector -->
     <div class="channel-layout-selector">
       <span class="mode-label">Grid:</span>
-      <a href="{{ url_for('parallel_cockpit', cols=2, ch1=channel_thread_ids[0], ch2=channel_thread_ids[1]) }}" 
+      <a href="{{ url_for('parallel_cockpit', cols=2, ch1=channel_thread_ids[0] if channel_thread_ids|length > 0 and channel_thread_ids[0] else None, ch2=channel_thread_ids[1] if channel_thread_ids|length > 1 and channel_thread_ids[1] else None) }}" 
          class="mode-btn {% if col_count == 2 %}active{% endif %}">
         2-SPLIT
       </a>
-      <a href="{{ url_for('parallel_cockpit', cols=3, ch1=channel_thread_ids[0], ch2=channel_thread_ids[1], ch3=channel_thread_ids[2]) }}" 
+      <a href="{{ url_for('parallel_cockpit', cols=3, ch1=channel_thread_ids[0] if channel_thread_ids|length > 0 and channel_thread_ids[0] else None, ch2=channel_thread_ids[1] if channel_thread_ids|length > 1 and channel_thread_ids[1] else None, ch3=channel_thread_ids[2] if channel_thread_ids|length > 2 and channel_thread_ids[2] else None) }}" 
          class="mode-btn {% if col_count == 3 %}active{% endif %}">
         3-TRIAD
       </a>
-      <a href="{{ url_for('parallel_cockpit', cols=4, ch1=channel_thread_ids[0], ch2=channel_thread_ids[1], ch3=channel_thread_ids[2], ch4=channel_thread_ids[3]) }}" 
+      <a href="{{ url_for('parallel_cockpit', cols=4, ch1=channel_thread_ids[0] if channel_thread_ids|length > 0 and channel_thread_ids[0] else None, ch2=channel_thread_ids[1] if channel_thread_ids|length > 1 and channel_thread_ids[1] else None, ch3=channel_thread_ids[2] if channel_thread_ids|length > 2 and channel_thread_ids[2] else None, ch4=channel_thread_ids[3] if channel_thread_ids|length > 3 and channel_thread_ids[3] else None) }}" 
          class="mode-btn {% if col_count == 4 %}active{% endif %}">
         4-MATRIX
       </a>

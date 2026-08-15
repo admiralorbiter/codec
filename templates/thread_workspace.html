@@ -30,6 +30,14 @@
       </form>
       {% endif %}
 
+      {% if thread.queue == 'NEEDS_YOU' %}
+      <form method="POST" action="{{ url_for('thread_accept_action', thread_id=thread.id) }}" style="display: inline;">
+        <button type="submit" class="btn-action btn-primary" style="background: var(--codec-green); border-color: var(--codec-green);">
+          ✓ ACCEPT RESULT
+        </button>
+      </form>
+      {% endif %}
+
       {% if thread.state == 'PARKED' %}
       <form method="POST" action="{{ url_for('thread_resume_action', thread_id=thread.id) }}" style="display: inline;">
         <button type="submit" class="btn-action btn-primary">
@@ -41,6 +49,14 @@
         ⏹ PARK THREAD
       </button>
       {% endif %}
+
+      <form method="POST" action="{{ url_for('thread_close_action', thread_id=thread.id) }}" 
+            onsubmit="return confirm('Mark thread \'{{ thread.name }}\' as complete and archive from active radar?');"
+            style="display: inline;">
+        <button type="submit" class="btn-action" style="color: var(--text-dim);" title="Complete &amp; Archive Thread">
+          ✓ DONE
+        </button>
+      </form>
     </div>
   </div>
 
@@ -122,14 +138,25 @@
 
       <!-- Surfaces Pointers -->
       <div class="sidebar-box">
-        <div class="sidebar-box-title">SURFACES &amp; EXTERNAL POINTERS</div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <div class="sidebar-box-title" style="margin-bottom: 0;">SURFACES &amp; POINTERS ({{ thread.surfaces|length }})</div>
+          <button class="btn-action" style="font-size: 0.65rem; padding: 2px 6px;" onclick="openSurfaceModal('{{ thread.id }}')">
+            + Link Surface
+          </button>
+        </div>
         <div class="surfaces-list" style="display: flex; flex-direction: column; gap: 0.5rem;">
           {% for s in thread.surfaces %}
-          <a href="{{ s.uri or '#' }}" target="_blank" class="surface-badge" style="width: 100%;">
-            <span class="surface-type-tag">[{{ s.surface_type }}]</span>
-            <span style="flex: 1; text-overflow: ellipsis; overflow: hidden;">{{ s.label }}</span>
-            <span style="color: var(--text-dim);">&nearr;</span>
-          </a>
+          <div style="display: flex; align-items: center; gap: 4px; width: 100%;">
+            <a href="{{ s.uri or '#' }}" target="_blank" class="surface-badge" style="flex: 1;">
+              <span class="surface-type-tag">[{{ s.surface_type }}]</span>
+              <span style="flex: 1; text-overflow: ellipsis; overflow: hidden;">{{ s.label }}</span>
+              <span style="color: var(--text-dim);">&nearr;</span>
+            </a>
+            <form method="POST" action="{{ url_for('surface_delete', surface_id=s.id) }}" onsubmit="return confirm('Remove surface pointer?');" style="margin: 0;">
+              <input type="hidden" name="thread_id" value="{{ thread.id }}">
+              <button type="submit" class="btn-pane-icon" style="color: var(--text-dim); border: none; background: transparent; font-size: 0.75rem;" title="Delete Surface Pointer">✕</button>
+            </form>
+          </div>
           {% else %}
           <div class="queue-empty-msg">No surfaces registered.</div>
           {% endfor %}

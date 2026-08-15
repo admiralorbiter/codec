@@ -350,3 +350,28 @@ class Relation(Base):
             "target_id": self.target_id,
             "note": self.note,
         }
+
+
+class FrictionLog(Base):
+    __tablename__ = "friction_logs"
+
+    id = Column(Integer, primary_key=True)
+    category = Column(String(50), nullable=False, default="FRICTION")  # FRICTION, MISSING_CAPABILITY, SUGGESTION
+    note = Column(Text, nullable=False)
+    page_url = Column(String(500), nullable=True)
+    thread_id = Column(Integer, ForeignKey("threads.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+
+    def __repr__(self):
+        return f"<FrictionLog #{self.id} [{self.category}]>"
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "category": self.category,
+            "note": self.note,
+            "page_url": self.page_url,
+            "thread_id": self.thread_id,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+

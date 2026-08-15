@@ -6,34 +6,100 @@
       {% if thread.current_actor %}
       · <span style="color: var(--codec-green);">{{ thread.current_actor.name }}</span>
       {% endif %}
+      {% if thread.is_current_focus %}
+      · <span style="color: var(--amber-alert); font-weight: bold;">● CURRENT FOCUS</span>
+      {% endif %}
     </div>
     <div class="drawer-title">{{ thread.name }}</div>
   </div>
-  <button class="drawer-close-btn" onclick="closeDrawer()" title="Close Drawer (Esc)">✕</button>
+  <div style="display: flex; gap: 6px; align-items: center;">
+    <a href="{{ url_for('thread_workspace_view', thread_id=thread.id) }}" 
+       class="btn-pane-icon" 
+       title="Open Full-Screen Dedicated Workspace"
+       style="text-decoration: none; padding: 4px 8px; font-size: 0.8rem; background: var(--bg-deep); border: 1px solid var(--border-tactical); border-radius: 4px; color: var(--text-bright);">
+      WORKSPACE ↗
+    </a>
+    <button class="drawer-close-btn" onclick="closeDrawer()" title="Close Drawer (Esc)">✕</button>
+  </div>
 </div>
 
 <div class="drawer-content">
 
   <!-- Tactical Action Toolbar -->
-  <div class="drawer-actions">
+  <div class="drawer-actions" style="flex-wrap: wrap; gap: 6px;">
     {% if thread.state == 'PARKED' or thread.queue == 'WAITING' %}
-    <button class="btn-action btn-primary" onclick="alert('Resume transition initializing in Burst 3')">
-      ▶ RESUME EPISODE
-    </button>
+    <form hx-post="{{ url_for('thread_resume_action', thread_id=thread.id) }}"
+          hx-target="#thread-drawer"
+          style="display: inline;">
+      <button type="submit" class="btn-action btn-primary">
+        ▶ RESUME EPISODE
+      </button>
+    </form>
     {% else %}
-    <button class="btn-action btn-primary" onclick="alert('Update transition initializing in Burst 3')">
-      🎙 UPDATE STATE
-    </button>
-    <button class="btn-action btn-warning" onclick="alert('Park flow initializing in Burst 3')">
+    <button class="btn-action btn-warning" onclick="toggleDrawerParkForm()">
       ⏹ PARK THREAD
     </button>
     {% endif %}
-    
-    {% if thread.queue == 'READY' %}
-    <button class="btn-action" onclick="alert('Dispatch engine initializing in Burst 3')">
-      ⚡ DISPATCH
+
+    {% if thread.queue == 'NEEDS_YOU' %}
+    <form hx-post="{{ url_for('thread_accept_action', thread_id=thread.id) }}"
+          hx-target="#thread-drawer"
+          style="display: inline;">
+      <button type="submit" class="btn-action btn-primary" style="background: var(--codec-green); border-color: var(--codec-green);">
+        ✓ ACCEPT RESULT
+      </button>
+    </form>
+    <button class="btn-action btn-warning" onclick="toggleDrawerReworkForm()">
+      ↺ REWORK
     </button>
     {% endif %}
+
+    {% if not thread.is_current_focus %}
+    <form hx-post="{{ url_for('thread_set_focus', thread_id=thread.id) }}"
+          hx-target="#thread-drawer"
+          style="display: inline;">
+      <button type="submit" class="btn-action">
+        ⚡ FOCUS
+      </button>
+    </form>
+    {% endif %}
+
+    <form hx-post="{{ url_for('thread_close_action', thread_id=thread.id) }}"
+          hx-confirm="Mark thread '{{ thread.name }}' as DONE and remove from active radar?"
+          style="display: inline;">
+      <button type="submit" class="btn-action" style="color: var(--text-dim);">
+        ✓ COMPLETE / DONE
+      </button>
+    </form>
+  </div>
+
+  <!-- Inline Park Form (Toggled) -->
+  <div id="drawer-park-box" style="display: none; background: var(--bg-deep); border: 1px solid var(--amber-alert); padding: 10px; border-radius: 4px; margin-bottom: 12px;">
+    <div style="font-family: var(--font-mono); font-size: 0.72rem; color: var(--amber-alert); margin-bottom: 6px;">
+      ⏹ PARK THREAD // CAPTURE RE-ENTRY STATE
+    </div>
+    <form hx-post="{{ url_for('thread_park_action', thread_id=thread.id) }}">
+      <textarea name="note" class="modal-textarea" rows="2" placeholder="Why are you leaving this? (e.g. Completed unit tests. Resuming tomorrow.)" style="width: 100%; margin-bottom: 6px;"></textarea>
+      <input type="text" name="resume_condition" class="search-input" placeholder="Optional resume condition (e.g. When export arrives)" style="width: 100%; margin-bottom: 6px;">
+      <div style="display: flex; justify-content: flex-end; gap: 6px;">
+        <button type="button" class="btn-action" onclick="toggleDrawerParkForm()">Cancel</button>
+        <button type="submit" class="btn-action btn-warning">Confirm Park</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Inline Rework Form (Toggled) -->
+  <div id="drawer-rework-box" style="display: none; background: var(--bg-deep); border: 1px solid var(--amber-alert); padding: 10px; border-radius: 4px; margin-bottom: 12px;">
+    <div style="font-family: var(--font-mono); font-size: 0.72rem; color: var(--amber-alert); margin-bottom: 6px;">
+      ↺ REQUEST REWORK
+    </div>
+    <form hx-post="{{ url_for('thread_rework_action', thread_id=thread.id) }}" hx-target="#thread-drawer">
+      <textarea name="feedback" class="modal-textarea" rows="2" placeholder="What needs to be revised or improved?" required style="width: 100%; margin-bottom: 6px;"></textarea>
+      <div style="display: flex; justify-content: flex-end; gap: 6px;">
+        <button type="button" class="btn-action" onclick="toggleDrawerReworkForm()">Cancel</button>
+        <button type="submit" class="btn-action btn-warning">Submit Feedback</button>
+      </div>
+    </form>
   </div>
 
   <!-- Section A: Current Frontier -->
@@ -76,7 +142,12 @@
 
   <!-- Section D: Surfaces & Pointers -->
   <div class="drawer-section">
-    <div class="drawer-section-title">SURFACES ({{ thread.surfaces|length }})</div>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+      <div class="drawer-section-title" style="margin-bottom: 0;">SURFACES ({{ thread.surfaces|length }})</div>
+      <button class="btn-action" style="font-size: 0.65rem; padding: 2px 6px;" onclick="openSurfaceModal('{{ thread.id }}')">
+        + Link Surface
+      </button>
+    </div>
     <div class="surfaces-list">
       {% for s in thread.surfaces %}
       <a href="{{ s.uri or '#' }}" 
@@ -92,11 +163,31 @@
     </div>
   </div>
 
-  <!-- Section E: Recent Event Log -->
+  <!-- Section E: Quick Event Dictate / Note -->
+  <div class="drawer-section">
+    <div class="drawer-section-title">RECORD TRANSITION NOTE</div>
+    <form hx-post="{{ url_for('thread_add_event', thread_id=thread.id) }}"
+          hx-target="#thread-drawer"
+          style="display: flex; flex-direction: column; gap: 6px;">
+      <input type="text" 
+             name="summary" 
+             class="search-input" 
+             placeholder="Dictate or type transition... (e.g. 'Verified baseline results')" 
+             required
+             style="width: 100%;">
+      <div style="display: flex; justify-content: flex-end;">
+        <button type="submit" class="btn-action btn-primary" style="font-size: 0.72rem;">
+          + Append Event
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Section F: Recent Event Log -->
   <div class="drawer-section">
     <div class="drawer-section-title">RECENT EVENTS ({{ thread.events|length }})</div>
     <div class="events-timeline">
-      {% for e in thread.events %}
+      {% for e in thread.events|reverse %}
       <div class="event-item">
         <div class="event-meta">
           <span>{{ e.event_type }}</span>

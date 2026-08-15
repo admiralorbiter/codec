@@ -63,10 +63,13 @@
     <!-- Quick Actions -->
     <div class="header-actions">
       <button class="btn-capture" title="Universal Voice Capture" onclick="openUniversalCaptureModal()">
-        <span>🎙</span> CAPTURE
+        <span id="mic-icon">🎙</span> CAPTURE
       </button>
       <button class="btn-new-thread" onclick="openNewThreadModal()">
         + THREAD
+      </button>
+      <button class="btn-action" style="font-size: 0.72rem; padding: 4px 8px; color: var(--amber-alert); border-color: rgba(235, 179, 58, 0.4);" title="Log Dogfood Friction Observation" onclick="openFrictionModal()">
+        ⚠️ FRICTION
       </button>
     </div>
   </header>
@@ -79,23 +82,27 @@
         <button class="modal-close-btn" onclick="closeUniversalCaptureModal()">✕</button>
       </div>
       <div class="codec-modal-body">
-        <div class="modal-prompt-text">
-          Dictate what changed or what you observed. Codec will infer the frontier, state, and next action:
+        <div class="modal-prompt-text" style="display: flex; justify-content: space-between; align-items: center;">
+          <span>Dictate or type what changed. Codec will infer thread, frontier, and state:</span>
+          <button type="button" id="btn-toggle-speech" class="btn-action" style="font-size: 0.72rem;" onclick="toggleSpeechRecognition()">
+            🎙 <span id="speech-btn-label">Start Dictation</span>
+          </button>
         </div>
         <textarea id="capture-transcript-box" class="modal-textarea" rows="3" placeholder="e.g. 'Finished the first recurrence run. Persistence is interesting, but I need a shuffled baseline before interpreting it. I started that computation now.'"></textarea>
         
-        <!-- Proposed Parse Card Preview -->
-        <div class="capture-proposal-preview" id="capture-proposal" style="display: none;">
-          <div class="proposal-header">PROPOSED INTERPRETATION</div>
-          <div class="proposal-item">✓ <strong>Thread:</strong> Recurrence / Persistence Effect</div>
-          <div class="proposal-item">✓ <strong>State:</strong> RUNNING (Local GPU Compute)</div>
-          <div class="proposal-item">✓ <strong>Next Move:</strong> Compare baseline outputs upon completion (~35m)</div>
+        <!-- Live Proposed Parse Card Preview -->
+        <div class="capture-proposal-preview" id="capture-proposal" style="display: none; flex-direction: column; gap: 4px; background: var(--bg-deep); border: 1px solid var(--border-tactical); padding: 10px; border-radius: 4px; margin-top: 10px;">
+          <div class="proposal-header" style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--codec-green); margin-bottom: 4px;">PROPOSED INTERPRETATION</div>
+          <div class="proposal-item" id="proposal-thread-row" style="font-size: 0.8rem;">✓ <strong>Thread:</strong> <span id="proposal-thread-name">—</span></div>
+          <div class="proposal-item" id="proposal-state-row" style="font-size: 0.8rem;">✓ <strong>State:</strong> <span id="proposal-state">—</span></div>
+          <div class="proposal-item" id="proposal-frontier-row" style="font-size: 0.8rem;">✓ <strong>Frontier:</strong> <span id="proposal-frontier">—</span></div>
+          <div class="proposal-item" id="proposal-next-row" style="font-size: 0.8rem;">✓ <strong>Next Move:</strong> <span id="proposal-next">—</span></div>
         </div>
       </div>
       <div class="codec-modal-footer">
         <button type="button" class="btn-action" onclick="closeUniversalCaptureModal()">Cancel</button>
-        <button type="button" class="btn-action" onclick="simulateCaptureParse()">Preview Interpretation</button>
-        <button type="button" class="btn-action btn-primary" onclick="confirmCaptureAction()">Confirm &amp; Save</button>
+        <button type="button" class="btn-action" onclick="fetchCapturePreview()">Preview Interpretation</button>
+        <button type="button" class="btn-action btn-primary" id="btn-confirm-capture" onclick="submitCaptureCommit()">Confirm &amp; Save</button>
       </div>
     </div>
   </div>
@@ -122,6 +129,84 @@
         <div class="codec-modal-footer">
           <button type="button" class="btn-action" onclick="closeNewThreadModal()">Cancel</button>
           <button type="submit" class="btn-action btn-primary">Initialize Thread</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Link Surface Modal -->
+  <div id="surface-modal" class="codec-modal" style="display: none;">
+    <div class="codec-modal-content">
+      <div class="codec-modal-header">
+        <span>+ LINK SURFACE POINTER</span>
+        <button class="modal-close-btn" onclick="closeSurfaceModal()">✕</button>
+      </div>
+      <form id="surface-form" method="POST" action="">
+        <div class="codec-modal-body">
+          <label style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase;">
+            Surface Type:
+          </label>
+          <select name="surface_type" class="channel-thread-select" style="width: 100%; margin: 4px 0 10px 0;">
+            <option value="CHAT">ChatGPT / Chat Conversation</option>
+            <option value="IDE">Antigravity / IDE Workspace</option>
+            <option value="REPOSITORY">GitHub Repository</option>
+            <option value="BRANCH">Git Branch</option>
+            <option value="NOTEBOOK">Jupyter / Research Notebook</option>
+            <option value="FILE">Local File</option>
+            <option value="FOLDER">Local Folder</option>
+            <option value="AUDIO">Audio File / Podcast</option>
+            <option value="WEBPAGE">Webpage / Portal</option>
+            <option value="OTHER">Other Surface</option>
+          </select>
+
+          <label style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase;">
+            Label (Required):
+          </label>
+          <input type="text" name="label" class="search-input" style="width: 100%; margin: 4px 0 10px 0;" placeholder="e.g. Antigravity Session or Repo: LAT Engine" required>
+
+          <label style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase;">
+            URI / Web URL (Optional):
+          </label>
+          <input type="text" name="uri" class="search-input" style="width: 100%; margin: 4px 0 10px 0;" placeholder="e.g. conversation://lat-refactor or https://github.com/...">
+
+          <label style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase;">
+            Local Filesystem Path (Optional):
+          </label>
+          <input type="text" name="local_path" class="search-input" style="width: 100%; margin: 4px 0 10px 0;" placeholder="e.g. c:/Users/admir/Github/codec">
+        </div>
+        <div class="codec-modal-footer">
+          <button type="button" class="btn-action" onclick="closeSurfaceModal()">Cancel</button>
+          <button type="submit" class="btn-action btn-primary">Link Surface</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Dogfood Friction Modal -->
+  <div id="friction-modal" class="codec-modal" style="display: none;">
+    <div class="codec-modal-content">
+      <div class="codec-modal-header">
+        <span>⚠️ DOGFOOD FRICTION OBSERVATION</span>
+        <button class="modal-close-btn" onclick="closeFrictionModal()">✕</button>
+      </div>
+      <form id="friction-form" onsubmit="submitFrictionLog(event)">
+        <div class="codec-modal-body">
+          <div class="modal-prompt-text">
+            What was annoying or what capability did Codec lack during this work session?
+          </div>
+          <div style="display: flex; gap: 12px; margin: 8px 0;">
+            <label style="font-size: 0.75rem; color: var(--text-bright); display: flex; align-items: center; gap: 4px;">
+              <input type="radio" name="friction_cat" value="FRICTION" checked> This was annoying / high friction
+            </label>
+            <label style="font-size: 0.75rem; color: var(--text-bright); display: flex; align-items: center; gap: 4px;">
+              <input type="radio" name="friction_cat" value="MISSING_CAPABILITY"> I needed something Codec didn't have
+            </label>
+          </div>
+          <textarea id="friction-note-box" name="note" class="modal-textarea" rows="3" placeholder="e.g. 'Finding which branch was linked to the recurrence thread took two clicks too many.'" required></textarea>
+        </div>
+        <div class="codec-modal-footer">
+          <button type="button" class="btn-action" onclick="closeFrictionModal()">Cancel</button>
+          <button type="submit" class="btn-action btn-warning">Save Telemetry</button>
         </div>
       </form>
     </div>
