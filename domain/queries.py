@@ -234,44 +234,47 @@ def generate_smart_commit_message(thread: Thread) -> str:
         except Exception:
             pass
 
-    # 2. Determine scope from changed files, active work packet, or thread
+    # 2. Determine scope & summary from changed files first
     scope = (thread.project.name if thread.project else "core").lower().replace(" ", "-")
+    changed_str = " ".join(changed_files).lower()
     
-    # Check for horizon keywords in changed files or active work packet
-    wp = getattr(thread, "active_work_packet", None)
-    all_context_text = " ".join(changed_files) + " " + (wp.desired_outcome if wp else "") + " " + (thread.frontier or "")
-    all_context_text = all_context_text.lower()
-
-    if "horizon2" in all_context_text or "work_packet" in all_context_text or "work packet" in all_context_text:
-        scope = "horizon2"
-    elif "horizon1" in all_context_text:
-        scope = "horizon1"
-    elif "codec" in thread.name.lower():
-        scope = "core"
-
-    # 3. Determine commit type & summary
     ctype = "feat"
     summary = ""
 
-    if wp and wp.desired_outcome:
-        d_out = wp.desired_outcome.strip()
-        for prefix in ["Build ", "Implement ", "Create ", "Add "]:
-            if d_out.startswith(prefix):
-                d_out = d_out[len(prefix):]
-                break
-        summary = d_out.rstrip(".").lower()
-    elif thread.frontier and not thread.frontier.startswith("Checkpointed"):
-        f_text = thread.frontier.strip()
-        first_sentence = f_text.split(".")[0].strip()
-        for prefix in ["Completed ", "Implemented ", "Built ", "Added "]:
-            if first_sentence.startswith(prefix):
-                first_sentence = first_sentence[len(prefix):]
-                break
-        summary = first_sentence[:80].rstrip(".").lower()
-    elif changed_files:
-        summary = f"update {len(changed_files)} files across {scope}"
+    if "horizon3" in changed_str or "sse" in changed_str:
+        scope = "horizon3"
+        summary = "antigravity live agent telemetry and real-time sse streaming"
+    elif "horizon2" in changed_str:
+        scope = "horizon2"
+        summary = "work packet engine, stop conditions, and adoption lifecycle"
+    elif "horizon1" in changed_str:
+        scope = "horizon1"
+        summary = "live git working set sync and cognitive context packet"
     else:
-        summary = f"update {thread.name.lower()}"
+        wp = getattr(thread, "active_work_packet", None)
+        if wp and wp.desired_outcome and wp.status in ("PREPARED", "DISPATCHED"):
+            d_out = wp.desired_outcome.strip()
+            for prefix in ["Build ", "Implement ", "Create ", "Add "]:
+                if d_out.startswith(prefix):
+                    d_out = d_out[len(prefix):]
+                    break
+            summary = d_out.rstrip(".").lower()
+            if "horizon 3" in d_out.lower():
+                scope = "horizon3"
+            elif "horizon 2" in d_out.lower():
+                scope = "horizon2"
+        elif thread.frontier and not thread.frontier.startswith("Checkpointed"):
+            f_text = thread.frontier.strip()
+            first_sentence = f_text.split(".")[0].strip()
+            for prefix in ["Completed ", "Implemented ", "Built ", "Added "]:
+                if first_sentence.startswith(prefix):
+                    first_sentence = first_sentence[len(prefix):]
+                    break
+            summary = first_sentence[:80].rstrip(".").lower()
+        elif changed_files:
+            summary = f"update {len(changed_files)} files across {scope}"
+        else:
+            summary = f"update {thread.name.lower()}"
 
     header = f"{ctype}({scope}): {summary}"
 

@@ -618,6 +618,85 @@ function fetchChannelThread(channelNum, threadId) {
   }
 }
 
+// -------------------------------------------------------------
+// Horizon 3: Live Real-Time Telemetry & Event Streaming
+// -------------------------------------------------------------
+let globalEventSource = null;
+
+function initLiveStream(threadId) {
+  const url = threadId ? `/threads/${threadId}/stream` : '/api/stream';
+  if (globalEventSource) {
+    globalEventSource.close();
+  }
+
+  try {
+    globalEventSource = new EventSource(url);
+
+    globalEventSource.addEventListener('CONNECTED', (e) => {
+      const badge = document.getElementById('live-stream-badge');
+      if (badge) {
+        badge.innerHTML = '🟢 LIVE STREAMING';
+        badge.style.color = 'var(--codec-green)';
+        badge.style.borderColor = 'var(--codec-green)';
+      }
+    });
+
+    globalEventSource.addEventListener('EVENT_APPENDED', (e) => {
+      const data = JSON.parse(e.data);
+      playAlertSound();
+      showTacticalToast(`📡 Live Event: ${data.payload.summary}`);
+      setTimeout(() => {
+        window.location.reload();
+      }, 700);
+    });
+
+    globalEventSource.addEventListener('FRONTIER_UPDATED', (e) => {
+      const data = JSON.parse(e.data);
+      showTacticalToast(`🎯 Frontier Advanced: ${data.payload.frontier ? data.payload.frontier.substring(0, 50) : 'Updated'}`);
+      setTimeout(() => {
+        window.location.reload();
+      }, 700);
+    });
+
+    globalEventSource.addEventListener('AGENT_TELEMETRY', (e) => {
+      const data = JSON.parse(e.data);
+      const payload = data.payload;
+      const telemetryBox = document.getElementById('agent-telemetry-status');
+      if (telemetryBox) {
+        telemetryBox.innerHTML = `
+          <div style="display: flex; align-items: center; gap: 8px; font-size: 0.75rem; color: var(--codec-green);">
+            <span class="running-pulse-indicator"></span>
+            <strong>${payload.actor_name || 'Antigravity'}</strong> [Step ${payload.step_index}/${payload.total_steps}]: ${payload.step_name}
+          </div>
+          ${payload.log_snippet ? `<pre style="font-size: 0.68rem; color: var(--text-dim); margin-top: 4px; max-height: 80px; overflow-y: auto;">${payload.log_snippet}</pre>` : ''}
+        `;
+        telemetryBox.style.display = 'block';
+      }
+      showTacticalToast(`🤖 ${payload.actor_name || 'Agent'} [Step ${payload.step_index}/${payload.total_steps}]: ${payload.step_name}`);
+    });
+
+    globalEventSource.addEventListener('RESULT_DELIVERED', (e) => {
+      playCodecRing();
+      showTacticalToast('📦 Result Delivered! Human Review Required (NEEDS YOU)', true);
+      setTimeout(() => {
+        window.location.reload();
+      }, 700);
+    });
+
+    globalEventSource.onerror = () => {
+      const badge = document.getElementById('live-stream-badge');
+      if (badge) {
+        badge.innerHTML = '🟡 RECONNECTING...';
+        badge.style.color = 'var(--amber-alert)';
+        badge.style.borderColor = 'var(--amber-alert)';
+      }
+    };
+  } catch (err) {
+    console.error('Failed to initialize SSE stream:', err);
+  }
+}
+
+
 
 
 

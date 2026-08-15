@@ -18,6 +18,10 @@
     </div>
 
     <div class="workspace-nav-right">
+      <span id="live-stream-badge" class="badge" style="color: var(--codec-green); border: 1px solid rgba(68, 189, 50, 0.4); font-size: 0.68rem;">
+        🟢 LIVE STREAMING
+      </span>
+
       <button class="btn-action" onclick="openWorkPacketModal()" style="color: var(--codec-green); border-color: rgba(68, 189, 50, 0.5);" title="Prepare structured delegation packet with stop conditions">
         📦 + Work Packet
       </button>
@@ -569,9 +573,14 @@
         <button type="button" class="btn-action" onclick="closeReworkModal()">Cancel</button>
         <button type="submit" class="btn-action btn-warning">Submit Rework Feedback</button>
       </div>
-    </form>
   </div>
 </div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    initLiveStream('{{ thread.id }}');
+  });
+</script>
 
 {% endblock %}
 

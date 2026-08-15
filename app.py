@@ -1,12 +1,15 @@
 import os
 import json
+import time
+import queue
 from pathlib import Path
-from flask import Flask, render_template, request, jsonify, abort, g, redirect, url_for
+from flask import Flask, render_template, request, jsonify, abort, g, redirect, url_for, Response, stream_with_context
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, scoped_session
 
 from config import Config
 from models import Base, Thread, Project, Actor, Event, Surface, Episode, WorkPacket, utcnow
+from domain.sse_service import broadcaster
 from domain.queries import (
     get_living_threads,
     get_cockpit_queues,
@@ -625,6 +628,76 @@ def create_app(config_class=Config):
         if not wp:
             return jsonify({"status": "none", "message": "No active work packet on thread."})
         return jsonify({"status": "active", "work_packet": wp.to_dict()})
+
+
+    # -------------------------------------------------------------
+    # Horizon 3: Live Real-Time Telemetry & SSE Streaming Routes
+    # -------------------------------------------------------------
+
+    @app.route("/api/stream", methods=["GET"])
+    def api_global_stream():
+        """Global SSE stream for cockpit and radar real-time updates."""
+        def event_stream():
+            q = broadcaster.subscribe()
+            try:
+                yield f"event: CONNECTED\ndata: {json.dumps({'status': 'connected', 'time': time.time()})}\n\n"
+                while True:
+                    try:
+                        msg = q.get(timeout=25.0)
+                        yield msg
+                    except queue.Empty:
+                        yield ": keepalive\n\n"
+            finally:
+                broadcaster.unsubscribe(q)
+
+        return Response(stream_with_context(event_stream()), mimetype="text/event-stream")
+
+    @app.route("/threads/<int:thread_id>/stream", methods=["GET"])
+    def thread_event_stream(thread_id: int):
+        """Thread-specific SSE stream for activity braid, frontier, and agent telemetry."""
+        def event_stream():
+            q = broadcaster.subscribe(thread_id=thread_id)
+            try:
+                yield f"event: CONNECTED\ndata: {json.dumps({'status': 'connected', 'thread_id': thread_id})}\n\n"
+                while True:
+                    try:
+                        msg = q.get(timeout=25.0)
+                        yield msg
+                    except queue.Empty:
+                        yield ": keepalive\n\n"
+            finally:
+                broadcaster.unsubscribe(q, thread_id=thread_id)
+
+        return Response(stream_with_context(event_stream()), mimetype="text/event-stream")
+
+    @app.route("/api/agent/telemetry", methods=["POST"])
+    def agent_telemetry_post():
+        """Ingests live agent execution step telemetry and broadcasts over SSE."""
+        data = request.get_json() if request.is_json else request.form.to_dict()
+        thread_id = data.get("thread_id")
+        if thread_id is not None:
+            try:
+                thread_id = int(thread_id)
+            except (ValueError, TypeError):
+                thread_id = None
+
+        step_name = data.get("step_name", "Executing task step")
+        step_index = data.get("step_index", 1)
+        total_steps = data.get("total_steps", 1)
+        log_snippet = data.get("log_snippet", "")
+        actor_name = data.get("actor_name", "Antigravity")
+
+        telemetry_payload = {
+            "thread_id": thread_id,
+            "step_name": step_name,
+            "step_index": step_index,
+            "total_steps": total_steps,
+            "log_snippet": log_snippet,
+            "actor_name": actor_name
+        }
+
+        broadcaster.broadcast("AGENT_TELEMETRY", telemetry_payload, thread_id=thread_id)
+        return jsonify({"status": "broadcasted", "telemetry": telemetry_payload})
 
 
     # -------------------------------------------------------------

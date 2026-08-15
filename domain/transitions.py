@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 from sqlalchemy.orm import Session
 from models import Thread, Event, Episode, Actor, Surface, FrictionLog, Relation, WorkPacket, utcnow
+from domain.sse_service import broadcaster
 
 def set_current_focus(db: Session, thread_id: int) -> Thread:
     """Set a single thread as the active cognitive focus."""
@@ -170,6 +171,7 @@ def append_event(
 
     db.commit()
     db.refresh(event)
+    broadcaster.broadcast("EVENT_APPENDED", event.to_dict(), thread_id=thread_id)
     return event
 
 
@@ -199,6 +201,7 @@ def close_thread(db: Session, thread_id: int, note: Optional[str] = None) -> Thr
     db.add(event)
     db.commit()
     db.refresh(thread)
+    broadcaster.broadcast("THREAD_CLOSED", {"thread_id": thread.id}, thread_id=thread.id)
     return thread
 
 
@@ -235,6 +238,13 @@ def update_thread_frontier(
     db.add(event)
     db.commit()
     db.refresh(thread)
+    broadcaster.broadcast("FRONTIER_UPDATED", {
+        "thread_id": thread.id,
+        "frontier": thread.frontier,
+        "next_action": thread.next_action,
+        "state": thread.state,
+        "attention_fit": thread.attention_fit
+    }, thread_id=thread.id)
     return thread
 
 
@@ -625,6 +635,7 @@ def create_work_packet(
     db.add(event)
     db.commit()
     db.refresh(packet)
+    broadcaster.broadcast("WORK_PACKET_PREPARED", packet.to_dict(), thread_id=thread.id)
     return packet
 
 
@@ -665,6 +676,7 @@ def dispatch_work_packet(
     db.add(event)
     db.commit()
     db.refresh(packet)
+    broadcaster.broadcast("WORK_PACKET_DISPATCHED", packet.to_dict(), thread_id=thread.id)
     return packet
 
 
@@ -706,6 +718,7 @@ def deliver_work_packet_result(
     db.add(event)
     db.commit()
     db.refresh(packet)
+    broadcaster.broadcast("RESULT_DELIVERED", packet.to_dict(), thread_id=thread.id)
     return packet
 
 
@@ -736,6 +749,7 @@ def adopt_work_packet_result(
     db.add(event)
     db.commit()
     db.refresh(packet)
+    broadcaster.broadcast("RESULT_ACCEPTED", packet.to_dict(), thread_id=thread.id)
     return packet
 
 
@@ -772,6 +786,7 @@ def request_work_packet_rework(
     db.add(event)
     db.commit()
     db.refresh(packet)
+    broadcaster.broadcast("REWORK_REQUESTED", packet.to_dict(), thread_id=thread.id)
     return packet
 
 

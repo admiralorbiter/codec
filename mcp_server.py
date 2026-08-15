@@ -20,6 +20,7 @@ from domain.transitions import (
     create_work_packet,
     deliver_work_packet_result
 )
+from domain.sse_service import broadcaster
 
 class CodecMCPServer:
     def __init__(self, db_uri: Optional[str] = None):
@@ -112,6 +113,40 @@ class CodecMCPServer:
         with self.get_session() as db:
             packet = deliver_work_packet_result(db, work_packet_id, result_summary=result_summary, evidence=evidence)
             return {'status': 'delivered', 'work_packet': packet.to_dict()}
+
+    def report_progress(self, thread_id: int, step_name: str, current_step: int = 1, total_steps: int = 1, log_snippet: Optional[str] = None) -> Dict[str, Any]:
+        """Broadcasts live step-by-step agent execution progress to the user's open browser session."""
+        telemetry_payload = {
+            "thread_id": thread_id,
+            "step_name": step_name,
+            "step_index": current_step,
+            "total_steps": total_steps,
+            "log_snippet": log_snippet or "",
+            "actor_name": "Antigravity"
+        }
+        broadcaster.broadcast("AGENT_TELEMETRY", telemetry_payload, thread_id=thread_id)
+        return {'status': 'broadcasted', 'telemetry': telemetry_payload}
+
+    def sync_active_session(self, thread_id: int, active_file: str, current_task: Optional[str] = None) -> Dict[str, Any]:
+        """Updates active file working set and records agent context sync event."""
+        with self.get_session() as db:
+            thread = get_thread_by_id(db, thread_id)
+            if not thread:
+                return {'error': f'Thread #{thread_id} not found'}
+            ws = thread.get_working_set()
+            ws['active_file'] = active_file
+            if current_task:
+                ws['current_task'] = current_task
+            thread.working_set_json = json.dumps(ws)
+            event = append_event(
+                db,
+                thread_id,
+                event_type="AGENT_SYNC",
+                summary=f"Antigravity working on `{active_file}`: {current_task or 'Active editing'}",
+                payload_dict={"active_file": active_file, "current_task": current_task}
+            )
+            return {'status': 'synced', 'working_set': ws, 'event': event.to_dict()}
+
 
 
 if __name__ == '__main__':
