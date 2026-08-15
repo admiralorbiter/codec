@@ -1,0 +1,75 @@
+<div id="queues-container" class="queues-grid">
+
+  <!-- Queue 1: NEEDS YOU -->
+  <section class="queue-section queue-needs-you">
+    <div class="queue-header">
+      <div class="queue-indicator"></div>
+      <h2 class="queue-title">
+        NEEDS YOU 
+        <span class="badge-count">{{ queues.NEEDS_YOU|length }}</span>
+      </h2>
+    </div>
+    <div class="queue-cards-list">
+      {% for thread in queues.NEEDS_YOU %}
+        {% include '_thread_card.html' %}
+      {% else %}
+        <div class="queue-empty-msg">No threads require immediate human decision.</div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <!-- Queue 2: RUNNING -->
+  <section class="queue-section queue-running">
+    <div class="queue-header">
+      <div class="queue-indicator"></div>
+      <h2 class="queue-title">
+        RUNNING 
+        <span class="badge-count">{{ queues.RUNNING|length }}</span>
+      </h2>
+    </div>
+    <div class="queue-cards-list">
+      {% for thread in queues.RUNNING %}
+        {% include '_thread_card.html' %}
+      {% else %}
+        <div class="queue-empty-msg">No active compute or autonomous agents executing.</div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <!-- Queue 3: READY -->
+  <section class="queue-section queue-ready">
+    <div class="queue-header">
+      <div class="queue-indicator"></div>
+      <h2 class="queue-title">
+        READY / PREPARED 
+        <span class="badge-count">{{ queues.READY|length }}</span>
+      </h2>
+    </div>
+    <div class="queue-cards-list">
+      {% for thread in queues.READY %}
+        {% include '_thread_card.html' %}
+      {% else %}
+        <div class="queue-empty-msg">No prepared threads waiting for activation.</div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <!-- Queue 4: WAITING -->
+  <section class="queue-section queue-waiting">
+    <div class="queue-header">
+      <div class="queue-indicator"></div>
+      <h2 class="queue-title">
+        WAITING ON CONDITION
+        <span class="badge-count">{{ queues.WAITING|length }}</span>
+      </h2>
+    </div>
+    <div class="queue-cards-list">
+      {% for thread in queues.WAITING %}
+        {% include '_thread_card.html' %}
+      {% else %}
+        <div class="queue-empty-msg">No threads waiting on external events.</div>
+      {% endfor %}
+    </div>
+  </section>
+
+</div>

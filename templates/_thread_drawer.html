@@ -1,0 +1,119 @@
+{% if thread %}
+<div class="drawer-header">
+  <div class="drawer-title-group">
+    <div class="drawer-subtitle">
+      <span>{{ thread.project.name if thread.project else 'General' }}</span> // #{{ thread.id }}
+      {% if thread.current_actor %}
+      · <span style="color: var(--codec-green);">{{ thread.current_actor.name }}</span>
+      {% endif %}
+    </div>
+    <div class="drawer-title">{{ thread.name }}</div>
+  </div>
+  <button class="drawer-close-btn" onclick="closeDrawer()" title="Close Drawer (Esc)">✕</button>
+</div>
+
+<div class="drawer-content">
+
+  <!-- Tactical Action Toolbar -->
+  <div class="drawer-actions">
+    {% if thread.state == 'PARKED' or thread.queue == 'WAITING' %}
+    <button class="btn-action btn-primary" onclick="alert('Resume transition initializing in Burst 3')">
+      ▶ RESUME EPISODE
+    </button>
+    {% else %}
+    <button class="btn-action btn-primary" onclick="alert('Update transition initializing in Burst 3')">
+      🎙 UPDATE STATE
+    </button>
+    <button class="btn-action btn-warning" onclick="alert('Park flow initializing in Burst 3')">
+      ⏹ PARK THREAD
+    </button>
+    {% endif %}
+    
+    {% if thread.queue == 'READY' %}
+    <button class="btn-action" onclick="alert('Dispatch engine initializing in Burst 3')">
+      ⚡ DISPATCH
+    </button>
+    {% endif %}
+  </div>
+
+  <!-- Section A: Current Frontier -->
+  <div class="drawer-section">
+    <div class="drawer-section-title">CURRENT FRONTIER</div>
+    <div class="drawer-box frontier-box">
+      {{ thread.frontier or 'No frontier defined yet.' }}
+    </div>
+  </div>
+
+  <!-- Section B: Next Action -->
+  {% if thread.next_action %}
+  <div class="drawer-section">
+    <div class="drawer-section-title">FIRST MOVE / NEXT ACTION</div>
+    <div class="drawer-box" style="border-left: 3px solid var(--amber-alert);">
+      {{ thread.next_action }}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Section C: Resume Capsule / Briefing -->
+  {% set briefing = thread.compile_briefing() %}
+  <div class="drawer-section">
+    <div class="drawer-section-title">RE-ENTRY BRIEFING CAPSULE</div>
+    <div class="briefing-card">
+      <div class="briefing-item">
+        <div class="briefing-item-label">WHY THIS EXISTS</div>
+        <div class="briefing-item-value">{{ briefing.intent }}</div>
+      </div>
+      <div class="briefing-item">
+        <div class="briefing-item-label">WHY IT STOPPED / DEPENDENCY</div>
+        <div class="briefing-item-value">{{ briefing.why_it_stopped }}</div>
+      </div>
+      <div class="briefing-item">
+        <div class="briefing-item-label">LAST ACTIVE</div>
+        <div class="briefing-item-value">{{ briefing.last_active }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section D: Surfaces & Pointers -->
+  <div class="drawer-section">
+    <div class="drawer-section-title">SURFACES ({{ thread.surfaces|length }})</div>
+    <div class="surfaces-list">
+      {% for s in thread.surfaces %}
+      <a href="{{ s.uri or '#' }}" 
+         target="_blank" 
+         class="surface-badge" 
+         title="{{ s.label }}{% if s.local_path %} ({{ s.local_path }}){% endif %}">
+        <span class="surface-type-tag">[{{ s.surface_type }}]</span>
+        <span>{{ s.label }}</span>
+      </a>
+      {% else %}
+      <div class="queue-empty-msg">No surfaces attached to this thread.</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Section E: Recent Event Log -->
+  <div class="drawer-section">
+    <div class="drawer-section-title">RECENT EVENTS ({{ thread.events|length }})</div>
+    <div class="events-timeline">
+      {% for e in thread.events %}
+      <div class="event-item">
+        <div class="event-meta">
+          <span>{{ e.event_type }}</span>
+          <span>·</span>
+          <span>{{ e.relative_time }}</span>
+          {% if e.actor %}
+          <span>·</span>
+          <span style="color: var(--codec-green-dim);">{{ e.actor.name }}</span>
+          {% endif %}
+        </div>
+        <div class="event-summary">{{ e.summary }}</div>
+      </div>
+      {% else %}
+      <div class="queue-empty-msg">No events recorded.</div>
+      {% endfor %}
+    </div>
+  </div>
+
+</div>
+{% endif %}

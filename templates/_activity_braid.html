@@ -1,0 +1,194 @@
+<div class="activity-braid">
+
+  <div class="braid-line"></div>
+
+  {% for event in thread.events %}
+  {% set payload = event.get_payload() %}
+  <div class="braid-event event-type-{{ event.event_type|lower }}" id="event-{{ event.id }}">
+    
+    <!-- Timeline Node Dot -->
+    <div class="braid-node">
+      {% if event.event_type == 'VOICE_NOTE' %}🎙
+      {% elif event.event_type == 'PLAN' %}📋
+      {% elif event.event_type in ('AGENT_CHECKPOINT', 'AGENT_RESULT') %}🤖
+      {% elif event.event_type in ('GIT_DIFF', 'GIT_COMMIT') %}🌿
+      {% elif event.event_type == 'TEST_RESULT' %}🧪
+      {% elif event.event_type == 'DECISION_REQUIRED' %}⚡
+      {% elif event.event_type == 'DECISION' %}✓
+      {% elif event.event_type == 'PARKED' %}⏹
+      {% elif event.event_type == 'RESUMED' %}▶
+      {% else %}●
+      {% endif %}
+    </div>
+
+    <!-- Event Body Card -->
+    <div class="braid-card">
+      
+      <!-- Event Header -->
+      <div class="braid-card-header">
+        <div class="braid-actor">
+          <span class="actor-name">{{ event.actor.name if event.actor else 'SYSTEM' }}</span>
+          <span class="event-tag badge">{{ event.event_type }}</span>
+        </div>
+        <div class="braid-time">{{ event.relative_time }}</div>
+      </div>
+
+      <!-- Event Summary -->
+      <div class="braid-summary">{{ event.summary }}</div>
+
+      <!-- Specialized Event Renderers -->
+
+      <!-- 1. Voice Note Renderer -->
+      {% if event.event_type == 'VOICE_NOTE' and payload.get('transcript') %}
+      <div class="voice-memo-card">
+        <div class="voice-audio-waveform">
+          <span class="wave-bar" style="height: 12px;"></span>
+          <span class="wave-bar" style="height: 22px;"></span>
+          <span class="wave-bar" style="height: 16px;"></span>
+          <span class="wave-bar" style="height: 28px;"></span>
+          <span class="wave-bar" style="height: 18px;"></span>
+          <span class="wave-bar" style="height: 24px;"></span>
+          <span class="wave-bar" style="height: 14px;"></span>
+          <span class="wave-bar" style="height: 8px;"></span>
+          <span class="audio-duration">{{ payload.get('audio_duration', '0:30') }}</span>
+        </div>
+        <div class="voice-transcript">
+          "{{ payload.get('transcript') }}"
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- 2. Plan Renderer -->
+      {% if event.event_type == 'PLAN' and payload.get('steps') %}
+      <div class="plan-card">
+        <div class="plan-title">{{ payload.get('plan_title', 'Implementation Plan') }}</div>
+        <div class="plan-steps-list">
+          {% for step in payload.get('steps') %}
+          <div class="plan-step plan-step-{{ step.status|lower }}">
+            <span class="step-icon">
+              {% if step.status == 'COMPLETED' %}✓
+              {% elif step.status == 'ACTIVE' %}●
+              {% else %}○{% endif %}
+            </span>
+            <span class="step-number">Step {{ step.step }}:</span>
+            <span class="step-title">{{ step.title }}</span>
+            <span class="step-status-tag">{{ step.status }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- 3. Agent Checkpoints Renderer -->
+      {% if event.event_type in ('AGENT_CHECKPOINT', 'AGENT_RESULT') and payload.get('checkpoints') %}
+      <div class="checkpoints-list">
+        {% for cp in payload.get('checkpoints') %}
+        <div class="checkpoint-item cp-{{ cp.status }}">
+          <span class="cp-icon">
+            {% if cp.status == 'pass' %}✓
+            {% elif cp.status == 'warn' %}⚠
+            {% else %}ℹ{% endif %}
+          </span>
+          <span class="cp-text">{{ cp.text }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <!-- 4. Git Diff Renderer -->
+      {% if event.event_type in ('GIT_DIFF', 'GIT_COMMIT') and payload.get('files') %}
+      <div class="git-diff-card">
+        <div class="git-diff-header">
+          <span>🌿 {{ payload.get('branch', 'working branch') }}</span>
+          {% if payload.get('commit') %}
+          <code>@{{ payload.get('commit') }}</code>
+          {% endif %}
+        </div>
+        <div class="diff-files-list">
+          {% for f in payload.get('files') %}
+          <div class="diff-file-row">
+            <span class="diff-file-path">{{ f.path }}</span>
+            <span class="diff-stats">
+              <span class="diff-add">+{{ f.additions }}</span>
+              <span class="diff-del">-{{ f.deletions }}</span>
+            </span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- 5. Test Results Renderer -->
+      {% if event.event_type == 'TEST_RESULT' and payload.get('passed') is not none %}
+      <div class="test-result-card">
+        <div class="test-badges">
+          <span class="test-badge test-pass">✓ {{ payload.get('passed') }} Passed</span>
+          {% if payload.get('failed', 0) > 0 %}
+          <span class="test-badge test-fail">✕ {{ payload.get('failed') }} Failed</span>
+          {% endif %}
+          {% if payload.get('pending', 0) > 0 %}
+          <span class="test-badge test-pending">○ {{ payload.get('pending') }} Awaiting Architecture Decision</span>
+          {% endif %}
+        </div>
+        {% if payload.get('suite') %}
+        <div class="test-suite-path">{{ payload.get('suite') }}</div>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      <!-- 6. DECISION REQUIRED (Decision Gate) Renderer -->
+      {% if event.event_type == 'DECISION_REQUIRED' and payload.get('options') %}
+      <div class="decision-gate-card">
+        <div class="decision-gate-header">
+          <div class="decision-gate-badge">⚡ DECISION GATE</div>
+          <div class="decision-gate-attention">Estimated attention: {{ payload.get('estimated_attention', '2–5 min') }}</div>
+        </div>
+
+        <div class="decision-options-grid">
+          {% for opt in payload.get('options') %}
+          <div class="decision-option-box {% if opt.recommended %}recommended{% endif %}">
+            <div class="decision-opt-top">
+              <span class="decision-opt-title">{{ opt.title }}</span>
+              {% if opt.recommended %}
+              <span class="badge-recommended">★ RECOMMENDED</span>
+              {% endif %}
+            </div>
+            <div class="decision-opt-desc">{{ opt.description }}</div>
+            <form method="POST" action="{{ url_for('thread_decide', thread_id=thread.id) }}">
+              <input type="hidden" name="choice" value="{{ opt.title }}">
+              <button type="submit" class="btn-choose-opt">
+                Choose {{ opt.title }}
+              </button>
+            </form>
+          </div>
+          {% endfor %}
+        </div>
+
+        <div class="decision-gate-actions">
+          <button class="btn-think-aloud" onclick="openThinkAloudModal('{{ thread.id }}')">
+            🎙 Think Aloud / Dictate Response
+          </button>
+        </div>
+      </div>
+      {% endif %}
+
+    </div>
+  </div>
+  {% endfor %}
+
+  <!-- Live Frontier Marker at Bottom of Braid -->
+  <div class="braid-frontier-marker">
+    <div class="frontier-node-pulse"></div>
+    <div class="frontier-marker-card">
+      <div class="frontier-marker-tag">NOW // CURRENT FRONTIER</div>
+      <div class="frontier-marker-text">{{ thread.frontier }}</div>
+      {% if thread.next_action %}
+      <div class="frontier-marker-next">
+        <span style="color: var(--codec-green); font-family: var(--font-mono);">&gt; Next Move:</span>
+        <span>{{ thread.next_action }}</span>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>

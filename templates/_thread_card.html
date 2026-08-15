@@ -1,0 +1,145 @@
+<div class="thread-card state-card-{{ thread.queue|lower }} {% if thread.is_current_focus %}is-current-focus{% endif %}" 
+     id="thread-card-{{ thread.id }}">
+  
+  <!-- Card Header Row -->
+  <div class="card-top">
+    <div class="card-project">
+      <span>{{ thread.project.name if thread.project else 'General' }}</span>
+      <span style="color: var(--text-dim);">#{{ thread.id }}</span>
+      {% if thread.is_current_focus %}
+      <span class="badge badge-focus-pill">● FOCUS</span>
+      {% endif %}
+    </div>
+    
+    <div class="card-badges">
+      {% if thread.attention_fit %}
+      <span class="badge badge-mode">{{ thread.attention_fit }}</span>
+      {% endif %}
+      
+      {% if thread.queue == 'NEEDS_YOU' %}
+      <span class="badge badge-state-needs-you">DECISION GATE</span>
+      {% elif thread.queue == 'RUNNING' %}
+      <span class="badge badge-state-running">RUNNING</span>
+      {% elif thread.queue == 'READY' %}
+      <span class="badge badge-state-ready">READY</span>
+      {% elif thread.queue == 'WAITING' %}
+      <span class="badge badge-state-waiting">WAITING</span>
+      {% elif thread.state == 'PARKED' %}
+      <span class="badge badge-state-parked">PARKED</span>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Thread Title (Clickable link to Dedicated Workspace) -->
+  <a href="{{ url_for('thread_workspace_view', thread_id=thread.id) }}" class="card-title-link">
+    <div class="card-title">{{ thread.name }}</div>
+  </a>
+
+  <!-- STATE-SPECIFIC BODY ANATOMIES -->
+
+  <!-- 1. NEEDS YOU (Decision / Review Card) -->
+  {% if thread.queue == 'NEEDS_YOU' %}
+  <div class="card-state-body card-body-needs-you">
+    <div class="needs-you-headline">
+      <span class="alert-icon">⚡</span>
+      <span><strong>Architecture Decision Required</strong> · Est. 2–5 min</span>
+    </div>
+    <div class="card-frontier-text">
+      {{ thread.frontier }}
+    </div>
+    <div class="card-action-bar">
+      <a href="{{ url_for('thread_workspace_view', thread_id=thread.id) }}" class="btn-card-action btn-card-primary">
+        Open Workspace &amp; Decide &rarr;
+      </a>
+    </div>
+  </div>
+
+  <!-- 2. RUNNING (Execution Progress Card) -->
+  {% elif thread.queue == 'RUNNING' %}
+  {% set ws = thread.get_working_set() %}
+  <div class="card-state-body card-body-running">
+    <div class="running-status-row">
+      <span class="running-pulse-indicator"></span>
+      <span><strong>{{ thread.current_actor.name if thread.current_actor else 'Compute Process' }}</strong> Executing</span>
+      <span class="running-step-tag">Step 3 / 5</span>
+    </div>
+    <div class="card-frontier-text">
+      {{ thread.frontier }}
+    </div>
+    <div class="running-timing-row">
+      <span>Human action: <em>None</em></span>
+      <span>Next checkpoint: <em>{{ ws.get('expected_duration', '~11 min') }}</em></span>
+    </div>
+  </div>
+
+  <!-- 3. READY / PREPARED (Work Packet Card) -->
+  {% elif thread.queue == 'READY' %}
+  <div class="card-state-body card-body-ready">
+    <div class="ready-packet-header">
+      <span>⚡ Work Packet Prepared · Stop Conditions Defined</span>
+    </div>
+    <div class="card-frontier-text">
+      {{ thread.frontier }}
+    </div>
+    <div class="card-action-bar">
+      <a href="{{ url_for('thread_workspace_view', thread_id=thread.id) }}" class="btn-card-action btn-card-ready">
+        ⚡ Launch / Dispatch
+      </a>
+    </div>
+  </div>
+
+  <!-- 4. WAITING (When / Then Cue Card) -->
+  {% elif thread.queue == 'WAITING' %}
+  <div class="card-state-body card-body-waiting">
+    <div class="waiting-condition-box">
+      <div class="condition-row">
+        <span class="condition-label">WAITING ON:</span>
+        <span class="condition-val">{{ thread.resume_condition or 'External Dependency' }}</span>
+      </div>
+      {% if thread.next_action %}
+      <div class="condition-row">
+        <span class="condition-label">THEN:</span>
+        <span class="condition-val">{{ thread.next_action }}</span>
+      </div>
+      {% endif %}
+    </div>
+    <div class="card-action-bar">
+      <form method="POST" action="{{ url_for('thread_resume_action', thread_id=thread.id) }}" style="display: inline;">
+        <button type="submit" class="btn-card-action btn-card-waiting">
+          ✓ Mark Condition Met
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Default / Generic Card Fallback -->
+  {% else %}
+  {% if thread.frontier %}
+  <div class="card-frontier">
+    <div>{{ thread.frontier }}</div>
+  </div>
+  {% endif %}
+  {% endif %}
+
+  <!-- Card Footer -->
+  <div class="card-footer">
+    <div class="card-footer-left">
+      {% if thread.current_actor %}
+      <span>👤 {{ thread.current_actor.name }}</span>
+      {% endif %}
+      {% if thread.surfaces %}
+      <span style="margin-left: 8px;">🔗 {{ thread.surfaces|length }}</span>
+      {% endif %}
+      {% if thread.events %}
+      <span style="margin-left: 8px;">📋 {{ thread.events|length }}</span>
+      {% endif %}
+    </div>
+    <div class="card-footer-right">
+      <a href="{{ url_for('thread_workspace_view', thread_id=thread.id) }}" class="card-open-link" title="Open Workspace">
+        Workspace &nearr;
+      </a>
+      <span style="margin-left: 6px;">{{ thread.relative_last_active }}</span>
+    </div>
+  </div>
+
+</div>

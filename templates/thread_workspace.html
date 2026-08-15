@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+
+{% block title %}CODEC // THREAD #{{ thread.id }}: {{ thread.name }}{% endblock %}
+
+{% block content %}
+<main class="thread-workspace-layout">
+
+  <!-- Workspace Top Toolbar -->
+  <div class="workspace-top-bar">
+    <div class="workspace-nav-left">
+      <a href="{{ url_for('cockpit') }}" class="btn-back-link">
+        &larr; MISSION CONTROL
+      </a>
+      <span class="nav-divider">//</span>
+      <span class="workspace-breadcrumb">{{ thread.project.name if thread.project else 'General' }}</span>
+      <span class="nav-divider">/</span>
+      <span class="workspace-current-title">{{ thread.name }}</span>
+    </div>
+
+    <div class="workspace-nav-right">
+      {% if thread.is_current_focus %}
+      <span class="badge-current-focus-active">
+        <span class="pulse-dot"></span> CURRENT FOCUS
+      </span>
+      {% else %}
+      <form method="POST" action="{{ url_for('thread_set_focus', thread_id=thread.id) }}" style="display: inline;">
+        <button type="submit" class="btn-action btn-set-focus">
+          ⚡ SET AS CURRENT FOCUS
+        </button>
+      </form>
+      {% endif %}
+
+      {% if thread.state == 'PARKED' %}
+      <form method="POST" action="{{ url_for('thread_resume_action', thread_id=thread.id) }}" style="display: inline;">
+        <button type="submit" class="btn-action btn-primary">
+          ▶ RESUME WORK
+        </button>
+      </form>
+      {% else %}
+      <button class="btn-action btn-warning" onclick="openParkModal('{{ thread.id }}')">
+        ⏹ PARK THREAD
+      </button>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Workspace Main Container -->
+  <div class="workspace-body">
+    
+    <!-- Left Column: Narrative Braid -->
+    <div class="workspace-narrative-col">
+      
+      <!-- Thread Header Banner -->
+      <div class="thread-banner-card">
+        <div class="banner-top-row">
+          <div class="banner-tags">
+            <span class="badge" style="background: var(--bg-deep); color: var(--text-muted);">
+              {{ thread.project.name if thread.project else 'General' }}
+            </span>
+            {% if thread.attention_fit %}
+            <span class="badge badge-mode">{{ thread.attention_fit }}</span>
+            {% endif %}
+            {% if thread.queue == 'NEEDS_YOU' %}
+            <span class="badge badge-state-needs-you">NEEDS YOU</span>
+            {% elif thread.queue == 'RUNNING' %}
+            <span class="badge badge-state-running">RUNNING</span>
+            {% elif thread.queue == 'READY' %}
+            <span class="badge badge-state-ready">READY</span>
+            {% elif thread.queue == 'WAITING' %}
+            <span class="badge badge-state-waiting">WAITING</span>
+            {% elif thread.state == 'PARKED' %}
+            <span class="badge badge-state-parked">PARKED</span>
+            {% endif %}
+          </div>
+          <div class="banner-last-active">
+            Last active: <strong>{{ thread.relative_last_active }}</strong>
+          </div>
+        </div>
+
+        <h1 class="banner-title">{{ thread.name }}</h1>
+        
+        {% if thread.intent %}
+        <div class="banner-intent">
+          <span class="intent-tag">INTENT:</span> {{ thread.intent }}
+        </div>
+        {% endif %}
+
+        <!-- Working Set Constellation -->
+        {% include '_working_set.html' %}
+      </div>
+
+      <!-- Chronological Activity Braid -->
+      <div class="braid-wrapper">
+        <div class="braid-section-title">CHRONOLOGICAL ACTIVITY BRAID</div>
+        {% include '_activity_braid.html' %}
+      </div>
+
+    </div>
+
+    <!-- Right Column: Briefing Capsule, Surfaces & Quick Capture -->
+    <div class="workspace-sidebar-col">
+      
+      <!-- Quick Re-entry Briefing Capsule -->
+      {% set briefing = thread.compile_briefing() %}
+      <div class="sidebar-box">
+        <div class="sidebar-box-title">RE-ENTRY BRIEFING CAPSULE</div>
+        <div class="briefing-card">
+          <div class="briefing-item">
+            <div class="briefing-item-label">WHERE YOU LEFT IT</div>
+            <div class="briefing-item-value">{{ briefing.frontier }}</div>
+          </div>
+          <div class="briefing-item">
+            <div class="briefing-item-label">WHY WORK STOPPED</div>
+            <div class="briefing-item-value">{{ briefing.why_it_stopped }}</div>
+          </div>
+          <div class="briefing-item">
+            <div class="briefing-item-label">FIRST MOVE</div>
+            <div class="briefing-item-value">{{ briefing.first_move }}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Surfaces Pointers -->
+      <div class="sidebar-box">
+        <div class="sidebar-box-title">SURFACES &amp; EXTERNAL POINTERS</div>
+        <div class="surfaces-list" style="display: flex; flex-direction: column; gap: 0.5rem;">
+          {% for s in thread.surfaces %}
+          <a href="{{ s.uri or '#' }}" target="_blank" class="surface-badge" style="width: 100%;">
+            <span class="surface-type-tag">[{{ s.surface_type }}]</span>
+            <span style="flex: 1; text-overflow: ellipsis; overflow: hidden;">{{ s.label }}</span>
+            <span style="color: var(--text-dim);">&nearr;</span>
+          </a>
+          {% else %}
+          <div class="queue-empty-msg">No surfaces registered.</div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- Quick Dictate Note Form -->
+      <div class="sidebar-box">
+        <div class="sidebar-box-title">RECORD WORK TRANSITION</div>
+        <form method="POST" action="{{ url_for('thread_add_event', thread_id=thread.id) }}" class="quick-event-form">
+          <textarea name="summary" class="quick-event-textarea" placeholder="Dictate or type what changed... (e.g. 'Completed test run. Discovered 3 edge cases.')" rows="3" required></textarea>
+          <div class="quick-event-actions">
+            <button type="button" class="btn-action" onclick="simulateVoiceMemo(this.form)">
+              🎙 Dictate
+            </button>
+            <button type="submit" class="btn-action btn-primary">
+              + Append Event
+            </button>
+          </div>
+        </form>
+      </div>
+
+    </div>
+
+  </div>
+
+</main>
+
+<!-- Park Modal -->
+<div id="park-modal" class="codec-modal" style="display: none;">
+  <div class="codec-modal-content">
+    <div class="codec-modal-header">
+      <span>⏹ PARK THREAD: {{ thread.name }}</span>
+      <button class="modal-close-btn" onclick="closeParkModal()">✕</button>
+    </div>
+    <form method="POST" action="{{ url_for('thread_park_action', thread_id=thread.id) }}">
+      <div class="codec-modal-body">
+        <div class="modal-prompt-text">
+          🎙 <strong>Anything future-you should remember before parking?</strong>
+        </div>
+        <textarea name="note" class="modal-textarea" rows="3" placeholder="e.g. Parked after handler tests passed. Resume once schema migration is decided."></textarea>
+        
+        <div style="margin-top: 0.75rem;">
+          <label style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase;">
+            Optional Resume Condition:
+          </label>
+          <input type="text" name="resume_condition" class="search-input" style="width: 100%; margin-top: 4px;" placeholder="e.g. When Pathful teacher export arrives">
+        </div>
+      </div>
+      <div class="codec-modal-footer">
+        <button type="button" class="btn-action" onclick="closeParkModal()">Cancel</button>
+        <button type="submit" class="btn-action btn-warning">Confirm &amp; Park Thread</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Think Aloud Modal -->
+<div id="think-aloud-modal" class="codec-modal" style="display: none;">
+  <div class="codec-modal-content">
+    <div class="codec-modal-header">
+      <span>🎙 THINK ALOUD / DICTATE DECISION</span>
+      <button class="modal-close-btn" onclick="closeThinkAloudModal()">✕</button>
+    </div>
+    <form method="POST" action="{{ url_for('thread_add_event', thread_id=thread.id) }}">
+      <input type="hidden" name="event_type" value="VOICE_NOTE">
+      <div class="codec-modal-body">
+        <div class="modal-prompt-text">
+          Dictate your stream-of-consciousness thoughts regarding the architecture decision:
+        </div>
+        <textarea name="summary" class="modal-textarea" rows="4" placeholder="I'm leaning toward SQLite relational projection because for V0 we need instant query performance and zero cold-start lag. Event-replay can be layered on in Horizon 2 if audit logs require it."></textarea>
+      </div>
+      <div class="codec-modal-footer">
+        <button type="button" class="btn-action" onclick="closeThinkAloudModal()">Cancel</button>
+        <button type="submit" class="btn-action btn-primary">Save Voice Note to Braid</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}

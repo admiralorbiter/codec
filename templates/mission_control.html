@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}CODEC // MISSION CONTROL{% endblock %}
+
+{% block content %}
+<main class="cockpit-layout" id="main-cockpit">
+
+  <!-- Left Sidebar -->
+  <aside class="cockpit-sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">
+        <span>DOMAINS</span>
+      </div>
+      <ul class="sidebar-nav-list">
+        {% for d in domains %}
+        <li>
+          <a href="{{ url_for('mission_control', domain=d) }}" 
+             class="sidebar-link {% if current_domain == d %}active{% endif %}">
+            <span>{{ d }}</span>
+          </a>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </aside>
+
+  <!-- Main Table Matrix -->
+  <section class="cockpit-main">
+    <div class="cockpit-toolbar">
+      <div class="search-box">
+        <span class="search-icon">🔍</span>
+        <input type="text" class="search-input" placeholder="Search mission control..." id="mc-search">
+      </div>
+      <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-dim);">
+        ALL LIVING THREADS // {{ threads|length }} TOTAL
+      </div>
+    </div>
+
+    <table class="mission-control-table">
+      <thead>
+        <tr>
+          <th>Thread</th>
+          <th>Project</th>
+          <th>State</th>
+          <th>Actor</th>
+          <th>Attention</th>
+          <th>Frontier</th>
+          <th>Next Action</th>
+          <th>Active</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for thread in threads %}
+        <tr hx-get="{{ url_for('thread_drawer', thread_id=thread.id) }}"
+            hx-target="#thread-drawer"
+            hx-swap="innerHTML">
+          <td class="table-thread-name">
+            {{ thread.name }}
+          </td>
+          <td>
+            <span class="badge" style="background: var(--bg-deep); color: var(--text-muted);">
+              {{ thread.project.name if thread.project else 'General' }}
+            </span>
+          </td>
+          <td>
+            {% if thread.queue == 'NEEDS_YOU' %}
+            <span class="badge badge-state-needs-you">NEEDS YOU</span>
+            {% elif thread.queue == 'RUNNING' %}
+            <span class="badge badge-state-running">RUNNING</span>
+            {% elif thread.queue == 'READY' %}
+            <span class="badge badge-state-ready">READY</span>
+            {% elif thread.queue == 'WAITING' %}
+            <span class="badge badge-state-waiting">WAITING</span>
+            {% elif thread.state == 'PARKED' %}
+            <span class="badge badge-state-parked">PARKED</span>
+            {% endif %}
+          </td>
+          <td>{{ thread.current_actor.name if thread.current_actor else '—' }}</td>
+          <td>
+            {% if thread.attention_fit %}
+            <span class="badge badge-mode">{{ thread.attention_fit }}</span>
+            {% else %}—{% endif %}
+          </td>
+          <td class="table-frontier" title="{{ thread.frontier }}">
+            {{ thread.frontier or '—' }}
+          </td>
+          <td>{{ thread.next_action or '—' }}</td>
+          <td>{{ thread.relative_last_active }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="8" style="text-align: center; color: var(--text-dim); padding: 2rem;">
+            No living threads in current view.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <!-- Right Drawer -->
+  <aside class="cockpit-drawer" id="thread-drawer" style="display: none;">
+  </aside>
+
+</main>
+{% endblock %}

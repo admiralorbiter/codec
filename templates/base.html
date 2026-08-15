@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}CODEC // 140.85{% endblock %}</title>
+  <!-- Tactical Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <!-- Codec Tactical Styles -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/codec.css') }}">
+  <!-- Local Vendored HTMX -->
+  <script src="{{ url_for('static', filename='js/vendor/htmx.min.js') }}"></script>
+</head>
+<body>
+
+  <!-- Top Tactical Header -->
+  <header class="codec-header">
+    <div class="codec-brand">
+      <a href="{{ url_for('cockpit') }}" class="codec-logo" style="text-decoration: none;">
+        <span>CODEC</span>
+        <span class="freq">140.85</span>
+      </a>
+      
+      <!-- Primary View Switcher -->
+      <nav class="codec-nav-pills">
+        <a href="{{ url_for('cockpit', domain=current_domain, mode=current_mode) }}" 
+           class="nav-pill {% if active_view == 'now' %}active{% endif %}">NOW</a>
+        <a href="{{ url_for('mission_control', domain=current_domain) }}" 
+           class="nav-pill {% if active_view == 'mission_control' %}active{% endif %}">MISSION CONTROL</a>
+      </nav>
+    </div>
+
+    <!-- Attention Mode Selector -->
+    <div class="mode-selector">
+      <span class="mode-label">Mode:</span>
+      {% for m in ['ALL', 'FOCUS', 'INTERACTIVE', 'SUPERVISE', 'CONSUME'] %}
+      <a href="{{ url_for('cockpit', domain=current_domain, mode=m, project_id=current_project_id) }}"
+         class="mode-btn {% if current_mode == m %}active{% endif %}"
+         hx-get="{{ url_for('cockpit_queues_partial', domain=current_domain, mode=m, project_id=current_project_id) }}"
+         hx-target="#queues-container"
+         hx-push-url="{{ url_for('cockpit', domain=current_domain, mode=m, project_id=current_project_id) }}">
+        {{ m }}
+      </a>
+      {% endfor %}
+    </div>
+
+    <!-- Active Current Focus Indicator (if set) -->
+    {% if current_focus_thread %}
+    <a href="{{ url_for('thread_workspace_view', thread_id=current_focus_thread.id) }}" 
+       class="header-focus-chip" 
+       title="Active Cognitive Focus: {{ current_focus_thread.name }}">
+      <span class="pulse-dot"></span>
+      <span class="focus-chip-label">FOCUS:</span>
+      <span class="focus-chip-name">{{ current_focus_thread.name }}</span>
+    </a>
+    {% endif %}
+
+    <!-- Quick Actions -->
+    <div class="header-actions">
+      <button class="btn-capture" title="Universal Voice Capture" onclick="openUniversalCaptureModal()">
+        <span>🎙</span> CAPTURE
+      </button>
+      <button class="btn-new-thread" onclick="openNewThreadModal()">
+        + THREAD
+      </button>
+    </div>
+  </header>
+
+  <!-- Universal Capture Modal -->
+  <div id="universal-capture-modal" class="codec-modal" style="display: none;">
+    <div class="codec-modal-content">
+      <div class="codec-modal-header">
+        <span>🎙 UNIVERSAL CAPTURE // WHAT CHANGED?</span>
+        <button class="modal-close-btn" onclick="closeUniversalCaptureModal()">✕</button>
+      </div>
+      <div class="codec-modal-body">
+        <div class="modal-prompt-text">
+          Dictate what changed or what you observed. Codec will infer the frontier, state, and next action:
+        </div>
+        <textarea id="capture-transcript-box" class="modal-textarea" rows="3" placeholder="e.g. 'Finished the first recurrence run. Persistence is interesting, but I need a shuffled baseline before interpreting it. I started that computation now.'"></textarea>
+        
+        <!-- Proposed Parse Card Preview -->
+        <div class="capture-proposal-preview" id="capture-proposal" style="display: none;">
+          <div class="proposal-header">PROPOSED INTERPRETATION</div>
+          <div class="proposal-item">✓ <strong>Thread:</strong> Recurrence / Persistence Effect</div>
+          <div class="proposal-item">✓ <strong>State:</strong> RUNNING (Local GPU Compute)</div>
+          <div class="proposal-item">✓ <strong>Next Move:</strong> Compare baseline outputs upon completion (~35m)</div>
+        </div>
+      </div>
+      <div class="codec-modal-footer">
+        <button type="button" class="btn-action" onclick="closeUniversalCaptureModal()">Cancel</button>
+        <button type="button" class="btn-action" onclick="simulateCaptureParse()">Preview Interpretation</button>
+        <button type="button" class="btn-action btn-primary" onclick="confirmCaptureAction()">Confirm &amp; Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- New Thread Modal -->
+  <div id="new-thread-modal" class="codec-modal" style="display: none;">
+    <div class="codec-modal-content">
+      <div class="codec-modal-header">
+        <span>+ NEW WORK THREAD</span>
+        <button class="modal-close-btn" onclick="closeNewThreadModal()">✕</button>
+      </div>
+      <form method="POST" action="{{ url_for('create_thread') }}">
+        <div class="codec-modal-body">
+          <label style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase;">
+            Thread Name (Required):
+          </label>
+          <input type="text" name="name" class="search-input" style="width: 100%; margin: 6px 0 12px 0;" placeholder="e.g. Model Latency Profiling" required>
+          
+          <label style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase;">
+            Optional Stated Intent:
+          </label>
+          <textarea name="intent" class="modal-textarea" rows="2" placeholder="e.g. Profile attention layer compute overhead across batch sizes."></textarea>
+        </div>
+        <div class="codec-modal-footer">
+          <button type="button" class="btn-action" onclick="closeNewThreadModal()">Cancel</button>
+          <button type="submit" class="btn-action btn-primary">Initialize Thread</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+
+  <!-- Main View Container -->
+  {% block content %}{% endblock %}
+
+  <!-- Core Scripts -->
+  <script src="{{ url_for('static', filename='js/codec.js') }}"></script>
+</body>
+</html>

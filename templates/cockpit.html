@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}CODEC // NOW ({{ current_mode }}){% endblock %}
+
+{% block content %}
+<main class="cockpit-layout" id="main-cockpit">
+
+  <!-- Left Sidebar: Domains & Projects -->
+  <aside class="cockpit-sidebar">
+    
+    <!-- Domains Filter -->
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">
+        <span>DOMAINS</span>
+      </div>
+      <ul class="sidebar-nav-list">
+        {% for d in domains %}
+        <li>
+          <a href="{{ url_for('cockpit', domain=d, mode=current_mode) }}" 
+             class="sidebar-link {% if current_domain == d and not current_project_id %}active{% endif %}"
+             hx-get="{{ url_for('cockpit_queues_partial', domain=d, mode=current_mode) }}"
+             hx-target="#queues-container"
+             hx-push-url="{{ url_for('cockpit', domain=d, mode=current_mode) }}">
+            <span>{{ d }}</span>
+            {% if d == 'All' %}
+            <span class="badge-count">{{ total_living }}</span>
+            {% endif %}
+          </a>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    <!-- Active Projects List -->
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">
+        <span>PROJECTS</span>
+      </div>
+      <ul class="sidebar-nav-list">
+        {% for p in projects %}
+        <li>
+          <a href="{{ url_for('cockpit', project_id=p.id, mode=current_mode) }}" 
+             class="sidebar-link {% if current_project_id == p.id %}active{% endif %}"
+             hx-get="{{ url_for('cockpit_queues_partial', project_id=p.id, mode=current_mode) }}"
+             hx-target="#queues-container"
+             hx-push-url="{{ url_for('cockpit', project_id=p.id, mode=current_mode) }}">
+            <span>{{ p.name }}</span>
+            <span class="badge-count">{{ p.threads|length }}</span>
+          </a>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+
+  </aside>
+
+  <!-- Center Area: Search & Attention Queues -->
+  <section class="cockpit-main">
+    <div class="cockpit-toolbar">
+      <div class="search-box">
+        <span class="search-icon">🔍</span>
+        <input type="text" 
+               class="search-input" 
+               placeholder="Filter threads, frontiers, actors..."
+               name="q"
+               hx-get="{{ url_for('cockpit_queues_partial', domain=current_domain, mode=current_mode, project_id=current_project_id) }}"
+               hx-trigger="keyup changed delay:250ms"
+               hx-target="#queues-container">
+      </div>
+      
+      <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-dim);">
+        ACTIVE COGNITIVE RADAR // {{ total_living }} THREADS
+      </div>
+    </div>
+
+    <!-- Attention Queues Container (Rendered / Swapped by HTMX) -->
+    {% include '_queues.html' %}
+  </section>
+
+  <!-- Right Slide-Out Drawer Shell (Populated via HTMX) -->
+  <aside class="cockpit-drawer" id="thread-drawer" style="display: none;">
+    <!-- Populated when thread card is clicked -->
+  </aside>
+
+</main>
+{% endblock %}

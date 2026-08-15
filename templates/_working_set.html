@@ -1,0 +1,58 @@
+{% set ws = thread.get_working_set() %}
+<div class="working-set-container">
+  <div class="working-set-header">
+    <span class="working-set-label">WORKING SET CONSTELLATION</span>
+    <span class="working-set-meta">SNAPSHOT // CURRENT</span>
+  </div>
+
+  <div class="working-set-chips">
+    {% if ws.get('repo') %}
+    <span class="ws-chip" title="Local Repository: {{ ws.get('repo_path') }}">
+      <span class="ws-icon">📦</span>
+      <span class="ws-text">repo: <strong>{{ ws.get('repo') }}</strong></span>
+    </span>
+    {% endif %}
+
+    {% if ws.get('branch') %}
+    <span class="ws-chip ws-chip-branch" title="Active Git Branch">
+      <span class="ws-icon">🌿</span>
+      <span class="ws-text">branch: <strong>{{ ws.get('branch') }}</strong></span>
+      {% if ws.get('commit') %}
+      <code class="ws-commit">@{{ ws.get('commit') }}</code>
+      {% endif %}
+    </span>
+    {% endif %}
+
+    {% if ws.get('files_changed_count') %}
+    <span class="ws-chip" title="Working tree changes">
+      <span class="ws-icon">📝</span>
+      <span class="ws-text"><strong>{{ ws.get('files_changed_count') }}</strong> files changed</span>
+      <span class="ws-diff-stat">
+        <span class="diff-add">+{{ ws.get('additions', 0) }}</span>
+        <span class="diff-del">-{{ ws.get('deletions', 0) }}</span>
+      </span>
+    </span>
+    {% endif %}
+
+    {% if ws.get('tests_status') %}
+    <span class="ws-chip ws-chip-tests" title="Test Suite Status">
+      <span class="ws-icon">🧪</span>
+      <span class="ws-text">tests: <strong>{{ ws.get('tests_status') }}</strong></span>
+    </span>
+    {% endif %}
+
+    {% if ws.get('active_agent') %}
+    <span class="ws-chip ws-chip-agent" title="Active AI Agent">
+      <span class="ws-icon">🤖</span>
+      <span class="ws-text">agent: <strong>{{ ws.get('active_agent') }}</strong></span>
+    </span>
+    {% endif %}
+
+    {% for s in thread.surfaces %}
+    <a href="{{ s.uri or '#' }}" target="_blank" class="ws-chip ws-chip-link" title="{{ s.label }}">
+      <span class="ws-icon">🔗</span>
+      <span class="ws-text">{{ s.label }}</span>
+    </a>
+    {% endfor %}
+  </div>
+</div>
