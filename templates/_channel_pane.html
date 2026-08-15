@@ -1,0 +1,122 @@
+<div class="channel-pane {% if thread.is_current_focus %}channel-focus{% endif %}" id="channel-pane-{{ channel_num }}">
+  
+  <!-- Channel Tactical Header -->
+  <div class="channel-header">
+    <div class="channel-header-top">
+      <div class="channel-freq-badge">
+        <span class="pulse-dot"></span>
+        <span class="freq-tag">CH {{ channel_num }} // {{ freq }}</span>
+      </div>
+
+      <div class="channel-header-actions">
+        {% if thread.queue == 'NEEDS_YOU' %}
+        <span class="badge badge-state-needs-you">DECISION</span>
+        {% elif thread.queue == 'RUNNING' %}
+        <span class="badge badge-state-running">RUNNING</span>
+        {% elif thread.queue == 'READY' %}
+        <span class="badge badge-state-ready">READY</span>
+        {% elif thread.queue == 'WAITING' %}
+        <span class="badge badge-state-waiting">WAITING</span>
+        {% elif thread.state == 'PARKED' %}
+        <span class="badge badge-state-parked">PARKED</span>
+        {% endif %}
+
+        <a href="{{ url_for('thread_workspace_view', thread_id=thread.id) }}" 
+           class="btn-pane-icon" 
+           title="Open Full-Screen Dedicated Workspace">
+          ↗
+        </a>
+      </div>
+    </div>
+
+    <!-- Thread Dropdown Selector / Hot-Swap -->
+    <div class="channel-thread-bar">
+      <select class="channel-thread-select"
+              onchange="fetchChannelThread('{{ channel_num }}', this.value)">
+        {% for t in all_living_threads %}
+        <option value="{{ t.id }}" {% if t.id == thread.id %}selected{% endif %}>
+          #{{ t.id }} {{ t.project.name if t.project else 'General' }} &middot; {{ t.name }} [{{ t.state }}]
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <!-- Compact Working Set Strip -->
+    {% set ws = thread.get_working_set() %}
+    <div class="channel-ws-strip">
+      {% if ws.get('repo') %}
+      <span class="ws-mini-chip">📦 {{ ws.get('repo') }}</span>
+      {% endif %}
+      {% if ws.get('branch') %}
+      <span class="ws-mini-chip">🌿 {{ ws.get('branch') }}</span>
+      {% endif %}
+      {% if ws.get('tests_status') %}
+      <span class="ws-mini-chip" style="color: var(--codec-green);">🧪 {{ ws.get('tests_status') }}</span>
+      {% endif %}
+      {% if thread.current_actor %}
+      <span class="ws-mini-chip">👤 {{ thread.current_actor.name }}</span>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Scrollable Activity Braid Area -->
+  <div class="channel-braid-scroll">
+    {% include '_channel_braid.html' %}
+  </div>
+
+  <!-- In-Pane Action Console (Live Frontier Interaction) -->
+  <div class="channel-console-bottom">
+    
+    <!-- In-Line Event Poster Form -->
+    <form hx-post="{{ url_for('channel_thread_events', channel_num=channel_num, thread_id=thread.id) }}"
+          hx-target="#channel-pane-{{ channel_num }}"
+          hx-swap="outerHTML"
+          class="channel-console-form">
+      <div class="console-input-row">
+        <input type="text" 
+               name="summary" 
+               class="channel-console-input" 
+               placeholder="Dictate or type transition... (e.g. 'Ran benchmark tests')" 
+               required 
+               autocomplete="off">
+        <button type="submit" class="btn-console-submit" title="Append Event to Braid">
+          +
+        </button>
+      </div>
+    </form>
+
+    <!-- Quick In-Pane Controls -->
+    <div class="channel-quick-controls">
+      {% if thread.state == 'PARKED' %}
+      <form hx-post="{{ url_for('channel_thread_resume', channel_num=channel_num, thread_id=thread.id) }}"
+            hx-target="#channel-pane-{{ channel_num }}"
+            hx-swap="outerHTML"
+            style="display: inline;">
+        <button type="submit" class="btn-channel-action btn-channel-resume">
+          ▶ Resume
+        </button>
+      </form>
+      {% else %}
+      <form hx-post="{{ url_for('channel_thread_park', channel_num=channel_num, thread_id=thread.id) }}"
+            hx-target="#channel-pane-{{ channel_num }}"
+            hx-swap="outerHTML"
+            style="display: inline;">
+        <button type="submit" class="btn-channel-action btn-channel-park">
+          ⏹ Park
+        </button>
+      </form>
+      {% endif %}
+
+      <form hx-post="{{ url_for('channel_thread_focus', channel_num=channel_num, thread_id=thread.id) }}"
+            hx-target="#channel-pane-{{ channel_num }}"
+            hx-swap="outerHTML"
+            style="display: inline;">
+        <button type="submit" class="btn-channel-action {% if thread.is_current_focus %}btn-channel-focused{% endif %}">
+          {% if thread.is_current_focus %}● Focus{% else %}Set Focus{% endif %}
+        </button>
+      </form>
+    </div>
+
+  </div>
+
+</div>

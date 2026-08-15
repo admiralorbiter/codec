@@ -1,0 +1,140 @@
+<div class="channel-activity-braid">
+
+  <div class="channel-braid-line"></div>
+
+  {% for event in thread.events %}
+  {% set payload = event.get_payload() %}
+  <div class="channel-braid-event event-type-{{ event.event_type|lower }}">
+    
+    <!-- Timeline Node -->
+    <div class="channel-braid-node">
+      {% if event.event_type == 'VOICE_NOTE' %}🎙
+      {% elif event.event_type == 'PLAN' %}📋
+      {% elif event.event_type in ('AGENT_CHECKPOINT', 'AGENT_RESULT') %}🤖
+      {% elif event.event_type in ('GIT_DIFF', 'GIT_COMMIT') %}🌿
+      {% elif event.event_type == 'TEST_RESULT' %}🧪
+      {% elif event.event_type == 'DECISION_REQUIRED' %}⚡
+      {% elif event.event_type == 'DECISION' %}✓
+      {% elif event.event_type == 'PARKED' %}⏹
+      {% elif event.event_type == 'RESUMED' %}▶
+      {% else %}●
+      {% endif %}
+    </div>
+
+    <!-- Event Content Box -->
+    <div class="channel-braid-card">
+      <div class="channel-card-header">
+        <span class="channel-actor-name">{{ event.actor.name if event.actor else 'SYSTEM' }}</span>
+        <span class="channel-event-time">{{ event.relative_time }}</span>
+      </div>
+
+      <div class="channel-summary-text">{{ event.summary }}</div>
+
+      <!-- 1. Compact Voice Memo -->
+      {% if event.event_type == 'VOICE_NOTE' and payload.get('transcript') %}
+      <div class="compact-voice-box">
+        <div class="compact-waveform">
+          <span class="wave-bar" style="height: 8px;"></span>
+          <span class="wave-bar" style="height: 16px;"></span>
+          <span class="wave-bar" style="height: 12px;"></span>
+          <span class="wave-bar" style="height: 20px;"></span>
+          <span class="wave-bar" style="height: 10px;"></span>
+          <span class="audio-duration">{{ payload.get('audio_duration', '0:30') }}</span>
+        </div>
+        <div class="compact-transcript">"{{ payload.get('transcript') }}"</div>
+      </div>
+      {% endif %}
+
+      <!-- 2. Compact Plan Checklist -->
+      {% if event.event_type == 'PLAN' and payload.get('steps') %}
+      <div class="compact-plan-box">
+        {% for step in payload.get('steps') %}
+        <div class="compact-plan-step plan-step-{{ step.status|lower }}">
+          <span class="step-icon">
+            {% if step.status == 'COMPLETED' %}✓
+            {% elif step.status == 'ACTIVE' %}●
+            {% else %}○{% endif %}
+          </span>
+          <span class="compact-step-text">{{ step.step }}. {{ step.title }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <!-- 3. Compact Checkpoints -->
+      {% if event.event_type in ('AGENT_CHECKPOINT', 'AGENT_RESULT') and payload.get('checkpoints') %}
+      <div class="compact-checkpoints-box">
+        {% for cp in payload.get('checkpoints') %}
+        <div class="checkpoint-item cp-{{ cp.status }}">
+          <span class="cp-icon">{% if cp.status == 'pass' %}✓{% elif cp.status == 'warn' %}⚠{% else %}ℹ{% endif %}</span>
+          <span class="cp-text">{{ cp.text }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <!-- 4. Compact Git Diff -->
+      {% if event.event_type in ('GIT_DIFF', 'GIT_COMMIT') and payload.get('files') %}
+      <div class="compact-diff-box">
+        <div style="font-family: var(--font-mono); font-size: 0.68rem; color: var(--text-muted); margin-bottom: 2px;">
+          🌿 {{ payload.get('branch', 'branch') }} @{{ payload.get('commit', 'head') }}
+        </div>
+        {% for f in payload.get('files') %}
+        <div class="compact-diff-file">
+          <span class="diff-path">{{ f.path }}</span>
+          <span class="diff-stat"><span class="diff-add">+{{ f.additions }}</span> <span class="diff-del">-{{ f.deletions }}</span></span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <!-- 5. Compact Test Result -->
+      {% if event.event_type == 'TEST_RESULT' and payload.get('passed') is not none %}
+      <div class="compact-test-box">
+        <span class="test-badge test-pass">✓ {{ payload.get('passed') }} Passed</span>
+        {% if payload.get('pending', 0) > 0 %}
+        <span class="test-badge test-pending">○ {{ payload.get('pending') }} Pending Decision</span>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      <!-- 6. Compact Decision Gate (In-Pane Choice Form) -->
+      {% if event.event_type == 'DECISION_REQUIRED' and payload.get('options') %}
+      <div class="compact-decision-box">
+        <div class="decision-gate-badge">⚡ DECISION REQUIRED</div>
+        <div class="compact-options-list">
+          {% for opt in payload.get('options') %}
+          <form hx-post="{{ url_for('channel_thread_decide', channel_num=channel_num, thread_id=thread.id) }}"
+                hx-target="#channel-pane-{{ channel_num }}"
+                hx-swap="outerHTML"
+                style="width: 100%;">
+            <input type="hidden" name="choice" value="{{ opt.title }}">
+            <button type="submit" class="btn-channel-opt {% if opt.recommended %}opt-recommended{% endif %}">
+              <span class="opt-btn-title">{{ opt.title }}</span>
+              {% if opt.recommended %}<span class="opt-badge-rec">REC</span>{% endif %}
+            </button>
+          </form>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+    </div>
+  </div>
+  {% endfor %}
+
+  <!-- Live Frontier in Braid -->
+  <div class="channel-frontier-marker">
+    <div class="channel-frontier-pulse"></div>
+    <div class="channel-frontier-card">
+      <div class="channel-frontier-label">NOW // FRONTIER</div>
+      <div class="channel-frontier-body">{{ thread.frontier }}</div>
+      {% if thread.next_action %}
+      <div class="channel-frontier-next">
+        <span>&gt; Next:</span> <strong>{{ thread.next_action }}</strong>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>

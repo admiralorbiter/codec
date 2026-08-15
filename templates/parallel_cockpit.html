@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}CODEC // PARALLEL COMMS ({{ channels|length }} CHANNELS){% endblock %}
+
+{% block content %}
+<main class="parallel-cockpit-layout">
+  
+  <!-- Parallel Matrix Toolbar -->
+  <div class="parallel-toolbar">
+    <div class="parallel-status-tag">
+      <span class="pulse-dot"></span>
+      <span>PARALLEL CODEC COMMS MATRIX // MULTI-CHANNEL ACTIVE</span>
+    </div>
+
+    <!-- Column Layout Preset Selector -->
+    <div class="channel-layout-selector">
+      <span class="mode-label">Grid:</span>
+      <a href="{{ url_for('parallel_cockpit', cols=2, ch1=channel_thread_ids[0], ch2=channel_thread_ids[1]) }}" 
+         class="mode-btn {% if col_count == 2 %}active{% endif %}">
+        2-SPLIT
+      </a>
+      <a href="{{ url_for('parallel_cockpit', cols=3, ch1=channel_thread_ids[0], ch2=channel_thread_ids[1], ch3=channel_thread_ids[2]) }}" 
+         class="mode-btn {% if col_count == 3 %}active{% endif %}">
+        3-TRIAD
+      </a>
+      <a href="{{ url_for('parallel_cockpit', cols=4, ch1=channel_thread_ids[0], ch2=channel_thread_ids[1], ch3=channel_thread_ids[2], ch4=channel_thread_ids[3]) }}" 
+         class="mode-btn {% if col_count == 4 %}active{% endif %}">
+        4-MATRIX
+      </a>
+    </div>
+  </div>
+
+  <!-- Dynamic Multi-Channel Parallel Grid -->
+  <div class="parallel-grid grid-cols-{{ col_count }}" id="parallel-matrix-grid">
+    {% for ch in channels %}
+      {% set channel_num = loop.index %}
+      {% set freq = ch.freq %}
+      {% set thread = ch.thread %}
+      {% include '_channel_pane.html' %}
+    {% endfor %}
+  </div>
+
+</main>
+{% endblock %}

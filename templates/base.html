@@ -25,12 +25,15 @@
       
       <!-- Primary View Switcher -->
       <nav class="codec-nav-pills">
+        <a href="{{ url_for('parallel_cockpit') }}" 
+           class="nav-pill {% if active_view == 'parallel' %}active{% endif %}">⚡ PARALLEL COMMS</a>
         <a href="{{ url_for('cockpit', domain=current_domain, mode=current_mode) }}" 
-           class="nav-pill {% if active_view == 'now' %}active{% endif %}">NOW</a>
+           class="nav-pill {% if active_view == 'now' %}active{% endif %}">RADAR</a>
         <a href="{{ url_for('mission_control', domain=current_domain) }}" 
            class="nav-pill {% if active_view == 'mission_control' %}active{% endif %}">MISSION CONTROL</a>
       </nav>
     </div>
+
 
     <!-- Attention Mode Selector -->
     <div class="mode-selector">

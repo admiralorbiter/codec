@@ -103,3 +103,15 @@ function simulateVoiceMemo(form) {
     textarea.focus();
   }
 }
+
+// Hot-swap thread into a specific parallel channel pane via HTMX
+function fetchChannelThread(channelNum, threadId) {
+  const targetId = `#channel-pane-${channelNum}`;
+  const url = `/channels/${channelNum}/thread/${threadId}`;
+  if (window.htmx) {
+    htmx.ajax('GET', url, { target: targetId, swap: 'outerHTML' });
+  } else {
+    window.location.href = url;
+  }
+}
+

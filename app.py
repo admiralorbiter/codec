@@ -154,6 +154,93 @@ def create_app(config_class=Config):
         )
 
     # -------------------------------------------------------------
+    # Multi-Channel Parallel Cockpit Routes (Burst 3)
+    # -------------------------------------------------------------
+
+    @app.route("/parallel")
+    def parallel_cockpit():
+        cols = request.args.get("cols", default=3, type=int)
+        cols = max(2, min(4, cols))
+
+        all_threads = get_living_threads(g.db, include_parked=True)
+        freq_presets = ["140.85", "140.96", "141.12", "141.80"]
+        channel_thread_ids = []
+        channels = []
+
+        for i in range(cols):
+            param_key = f"ch{i+1}"
+            default_id = all_threads[i].id if i < len(all_threads) else (all_threads[0].id if all_threads else 1)
+            t_id = request.args.get(param_key, default=default_id, type=int)
+            channel_thread_ids.append(t_id)
+
+            t = get_thread_by_id(g.db, t_id) or (all_threads[0] if all_threads else None)
+            channels.append({
+                "thread": t,
+                "freq": freq_presets[i % len(freq_presets)],
+                "channel_num": i + 1
+            })
+
+        return render_template(
+            "parallel_cockpit.html",
+            active_view="parallel",
+            col_count=cols,
+            channels=channels,
+            channel_thread_ids=channel_thread_ids,
+            all_living_threads=all_threads,
+            current_domain="All",
+            current_mode="ALL"
+        )
+
+    @app.route("/channels/<int:channel_num>/thread/<int:thread_id>")
+    def channel_thread_view(channel_num: int, thread_id: int):
+        thread = get_thread_by_id(g.db, thread_id)
+        if not thread:
+            abort(404)
+        all_threads = get_living_threads(g.db, include_parked=True)
+        freq_presets = ["140.85", "140.96", "141.12", "141.80"]
+        freq = freq_presets[(channel_num - 1) % len(freq_presets)]
+        return render_template(
+            "_channel_pane.html",
+            channel_num=channel_num,
+            freq=freq,
+            thread=thread,
+            all_living_threads=all_threads
+        )
+
+    @app.route("/channels/<int:channel_num>/thread/<int:thread_id>/decide", methods=["POST"])
+    def channel_thread_decide(channel_num: int, thread_id: int):
+        choice = request.form.get("choice")
+        reasoning = request.form.get("reasoning")
+        make_decision(g.db, thread_id, choice=choice, reasoning=reasoning)
+        return redirect(url_for("channel_thread_view", channel_num=channel_num, thread_id=thread_id))
+
+    @app.route("/channels/<int:channel_num>/thread/<int:thread_id>/events", methods=["POST"])
+    def channel_thread_events(channel_num: int, thread_id: int):
+        summary = request.form.get("summary", "").strip()
+        event_type = request.form.get("event_type", "NOTE").upper()
+        if summary:
+            append_event(g.db, thread_id, event_type=event_type, summary=summary)
+        return redirect(url_for("channel_thread_view", channel_num=channel_num, thread_id=thread_id))
+
+    @app.route("/channels/<int:channel_num>/thread/<int:thread_id>/park", methods=["POST"])
+    def channel_thread_park(channel_num: int, thread_id: int):
+        note = request.form.get("note")
+        resume_condition = request.form.get("resume_condition")
+        park_thread(g.db, thread_id, note=note, resume_condition=resume_condition)
+        return redirect(url_for("channel_thread_view", channel_num=channel_num, thread_id=thread_id))
+
+    @app.route("/channels/<int:channel_num>/thread/<int:thread_id>/resume", methods=["POST"])
+    def channel_thread_resume(channel_num: int, thread_id: int):
+        resume_thread(g.db, thread_id)
+        return redirect(url_for("channel_thread_view", channel_num=channel_num, thread_id=thread_id))
+
+    @app.route("/channels/<int:channel_num>/thread/<int:thread_id>/focus", methods=["POST"])
+    def channel_thread_focus(channel_num: int, thread_id: int):
+        set_current_focus(g.db, thread_id)
+        return redirect(url_for("channel_thread_view", channel_num=channel_num, thread_id=thread_id))
+
+
+    # -------------------------------------------------------------
     # State Transition Action Endpoints
     # -------------------------------------------------------------
 
