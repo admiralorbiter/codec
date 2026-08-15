@@ -18,6 +18,13 @@ def seed_database(engine=None):
     now = datetime.now(timezone.utc)
 
     # 1. Projects
+    codec_proj = Project(
+        name="Codec",
+        description="Personal tactical control plane for human-AI work, living threads, and parallel comms.",
+        domain="Research",
+        status="ACTIVE",
+        created_at=now - timedelta(days=2)
+    )
     lat = Project(
         name="LAT",
         description="Living Activity Tracker and ingestion pipeline engine.",
@@ -54,7 +61,7 @@ def seed_database(engine=None):
         created_at=now - timedelta(days=10)
     )
 
-    session.add_all([lat, polaris, recurrence, big_brain, sidetracked])
+    session.add_all([codec_proj, lat, polaris, recurrence, big_brain, sidetracked])
     session.flush()
 
     # 2. Actors
@@ -72,7 +79,7 @@ def seed_database(engine=None):
     # Thread 1: LAT Refactor (NEEDS_YOU - CURRENT FOCUS)
     t1_working_set = {
         "repo": "LAT Engine",
-        "repo_path": "c:/Users/admir/Github/codec",
+        "repo_path": ".",
         "branch": "feat/lat-ingestion",
         "commit": "a8f309b",
         "files_changed_count": 5,
@@ -191,12 +198,40 @@ def seed_database(engine=None):
         created_at=now - timedelta(days=8)
     )
 
-    session.add_all([t1, t2, t3, t4, t5, t6])
+    # Thread 7: Codec Tactical Control Plane (READY - FOCUS)
+    t7_working_set = {
+        "repo": "codec",
+        "repo_path": ".",
+        "branch": "main",
+        "commit": "1f274b2",
+        "files_changed_count": 8,
+        "additions": 340,
+        "deletions": 45,
+        "tests_status": "35/35 passing",
+        "active_agent": "Antigravity"
+    }
+    t7 = Thread(
+        project_id=codec_proj.id,
+        name="Codec Tactical Control Plane & Horizon 1 Engine",
+        intent="Build a low-friction, voice-friendly personal control plane for human-AI work with live Git working sets and attention-aware queues.",
+        frontier="Horizon 1 implemented (Live Git Sync, AI Context Packet, Decision Gate, Cross-Thread Relations). 35/35 tests passing. Verifying live Git sync on Codec repository.",
+        state="READY",
+        attention_fit="FOCUS",
+        current_actor_id=antigravity.id,
+        next_action="Perform live Git sync test and verify uncommitted working tree diff stats.",
+        is_living=True,
+        is_current_focus=False,
+        working_set_json=json.dumps(t7_working_set),
+        last_active_at=now - timedelta(minutes=1),
+        created_at=now - timedelta(days=2)
+    )
+
+    session.add_all([t1, t2, t3, t4, t5, t6, t7])
     session.flush()
 
     # 4. Surfaces
     s1 = Surface(thread_id=t1.id, surface_type="CHAT", provider="Antigravity", label="Antigravity Refactor Session", uri="conversation://lat-refactor")
-    s2 = Surface(thread_id=t1.id, surface_type="REPOSITORY", provider="GitHub", label="Repo: LAT Engine", local_path="c:/Users/admir/Github/codec")
+    s2 = Surface(thread_id=t1.id, surface_type="REPOSITORY", provider="GitHub", label="Repo: LAT Engine", local_path=".")
     s3 = Surface(thread_id=t1.id, surface_type="BRANCH", provider="Git", label="branch: feat/lat-ingestion")
     s3b = Surface(thread_id=t1.id, surface_type="CHAT", provider="ChatGPT", label="ChatGPT Persistence Architecture Thread", uri="https://chatgpt.com/g/p-lat-arch")
 
@@ -210,7 +245,10 @@ def seed_database(engine=None):
     s9 = Surface(thread_id=t5.id, surface_type="IDE", provider="Antigravity", label="Polaris Workspace", local_path="c:/Users/admir/Github/polaris")
     s10 = Surface(thread_id=t5.id, surface_type="CHAT", provider="ChatGPT", label="ChatGPT Polaris Architecture Project", uri="https://chatgpt.com/g/p-polaris-planning")
 
-    session.add_all([s1, s2, s3, s3b, s4, s5, s6, s7, s8, s9, s10])
+    s11 = Surface(thread_id=t7.id, surface_type="REPOSITORY", provider="GitHub", label="Repo: Codec Control Plane", local_path=".")
+    s12 = Surface(thread_id=t7.id, surface_type="IDE", provider="Antigravity", label="Antigravity Pair-Programming Workspace", uri="conversation://codec-dev")
+
+    session.add_all([s1, s2, s3, s3b, s4, s5, s6, s7, s8, s9, s10, s11, s12])
     session.flush()
 
     # 5. Events / Chronological Activity Braid for Thread 1 (LAT Refactor)

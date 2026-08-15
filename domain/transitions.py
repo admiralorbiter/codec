@@ -1,8 +1,8 @@
 import json
 from datetime import datetime, timezone
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from sqlalchemy.orm import Session
-from models import Thread, Event, Episode, Actor, Surface, FrictionLog, utcnow
+from models import Thread, Event, Episode, Actor, Surface, FrictionLog, Relation, utcnow
 
 def set_current_focus(db: Session, thread_id: int) -> Thread:
     """Set a single thread as the active cognitive focus."""
@@ -490,4 +490,90 @@ def log_friction(
     db.commit()
     db.refresh(f_log)
     return f_log
+
+
+def add_thread_relation(
+    db: Session,
+    source_id: int,
+    target_id: int,
+    relation_type: str = "DEPENDS_ON",
+    note: Optional[str] = None
+) -> Relation:
+    """Link two threads with a semantic dependency relation."""
+    rel = Relation(
+        source_type="thread",
+        source_id=source_id,
+        relation_type=relation_type.strip().upper(),
+        target_type="thread",
+        target_id=target_id,
+        note=note.strip() if note else None,
+        created_at=utcnow()
+    )
+    db.add(rel)
+    
+    # Append relation event to both threads
+    source = db.query(Thread).filter(Thread.id == source_id).first()
+    target = db.query(Thread).filter(Thread.id == target_id).first()
+    target_name = target.name if target else f"#{target_id}"
+    
+    ev = Event(
+        thread_id=source_id,
+        event_type="RELATION_ADDED",
+        summary=f"Linked relation: {relation_type} -> '{target_name}'" + (f" ({note})" if note else ""),
+        payload_json=json.dumps({"target_id": target_id, "relation_type": relation_type, "note": note}),
+        occurred_at=utcnow()
+    )
+    db.add(ev)
+    db.commit()
+    db.refresh(rel)
+    return rel
+
+
+def delete_thread_relation(db: Session, relation_id: int) -> bool:
+    """Delete a relation edge."""
+    rel = db.query(Relation).filter(Relation.id == relation_id).first()
+    if rel:
+        db.delete(rel)
+        db.commit()
+        return True
+    return False
+
+
+def create_decision_gate(
+    db: Session,
+    thread_id: int,
+    decision_title: str,
+    options: List[Dict[str, Any]],
+    estimated_attention: str = "2–5 min"
+) -> Event:
+    """
+    Creates an interactive decision gate at the frontier of a thread
+    and moves thread to NEEDS_YOU state.
+    """
+    thread = db.query(Thread).filter(Thread.id == thread_id).first()
+    if not thread:
+        raise ValueError(f"Thread #{thread_id} not found")
+
+    thread.state = "NEEDS_YOU"
+    thread.frontier = f"DECISION GATE: {decision_title}"
+    thread.last_active_at = utcnow()
+
+    payload = {
+        "decision_title": decision_title,
+        "estimated_attention": estimated_attention,
+        "options": options
+    }
+
+    event = Event(
+        thread_id=thread.id,
+        event_type="DECISION_REQUIRED",
+        summary=f"DECISION GATE: {decision_title}",
+        payload_json=json.dumps(payload),
+        occurred_at=utcnow()
+    )
+    db.add(event)
+    db.commit()
+    db.refresh(event)
+    return event
+
 

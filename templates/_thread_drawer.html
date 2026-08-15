@@ -54,6 +54,10 @@
     </button>
     {% endif %}
 
+    <button class="btn-action" onclick="copyContextPacket('{{ thread.id }}')" style="color: var(--codec-green); border-color: var(--codec-green);" title="Copy token-efficient markdown context packet to paste into ChatGPT, Claude, or Agent">
+      📋 Copy Context Packet
+    </button>
+
     {% if not thread.is_current_focus %}
     <form hx-post="{{ url_for('thread_set_focus', thread_id=thread.id) }}"
           hx-target="#thread-drawer"

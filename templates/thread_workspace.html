@@ -18,6 +18,18 @@
     </div>
 
     <div class="workspace-nav-right">
+      <button class="btn-action" onclick="openGitCommitModal('{{ thread.id }}')" style="color: var(--amber-alert); border-color: var(--amber-alert);" title="Stage, commit, and snapshot current working tree">
+        🌿 Git Commit
+      </button>
+
+      <button class="btn-action" onclick="copyContextPacket('{{ thread.id }}')" style="color: var(--codec-green); border-color: var(--codec-green);" title="Copy token-efficient markdown context packet to paste into ChatGPT, Claude, or Agent">
+        📋 Copy Context Packet
+      </button>
+
+      <button class="btn-action" onclick="openDecisionGateModal()" style="color: var(--amber-alert); border-color: rgba(235, 179, 58, 0.4);" title="Create an interactive decision fork at the frontier">
+        ⚡ + Decision Gate
+      </button>
+
       {% if thread.is_current_focus %}
       <span class="badge-current-focus-active">
         <span class="pulse-dot"></span> CURRENT FOCUS
@@ -86,6 +98,12 @@
             <span class="badge badge-state-waiting">WAITING</span>
             {% elif thread.state == 'PARKED' %}
             <span class="badge badge-state-parked">PARKED</span>
+            {% endif %}
+            {% if thread.is_stale_frontier %}
+            <span class="badge" style="background: rgba(247, 183, 49, 0.2); color: var(--amber-alert); border: 1px solid var(--amber-alert);" title="Frontier untouched for >3 days">⏳ STALE FRONTIER</span>
+            {% endif %}
+            {% if thread.is_cold_storage %}
+            <span class="badge" style="background: rgba(165, 94, 234, 0.2); color: var(--purple-deep); border: 1px solid var(--purple-deep);" title="Thread parked for >7 days">📦 COLD STORAGE</span>
             {% endif %}
           </div>
           <div class="banner-last-active">
@@ -159,6 +177,33 @@
           </div>
           {% else %}
           <div class="queue-empty-msg">No surfaces registered.</div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- Cross-Thread Relations Section -->
+      <div class="sidebar-box">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <div class="sidebar-box-title" style="margin-bottom: 0;">CROSS-THREAD RELATIONS ({{ relations|length }})</div>
+          <button class="btn-action" style="font-size: 0.65rem; padding: 2px 6px;" onclick="openRelationModal()">
+            + Link Relation
+          </button>
+        </div>
+        <div class="surfaces-list" style="display: flex; flex-direction: column; gap: 0.5rem;">
+          {% for r in relations %}
+          <div style="display: flex; align-items: center; gap: 4px; width: 100%;">
+            <a href="{{ url_for('thread_workspace_view', thread_id=r.other_thread_id) }}" class="surface-badge" style="flex: 1;" title="{{ r.note or '' }}">
+              <span class="surface-type-tag" style="color: var(--amber-alert);">[{{ r.relation_type }}]</span>
+              <span style="flex: 1; text-overflow: ellipsis; overflow: hidden;">{{ r.other_thread_name }}</span>
+              <span style="color: var(--text-dim);">&nearr;</span>
+            </a>
+            <form method="POST" action="{{ url_for('relation_delete', relation_id=r.id) }}" onsubmit="return confirm('Remove relation edge?');" style="margin: 0;">
+              <input type="hidden" name="thread_id" value="{{ thread.id }}">
+              <button type="submit" class="btn-pane-icon" style="color: var(--text-dim); border: none; background: transparent; font-size: 0.75rem;" title="Remove Relation Edge">✕</button>
+            </form>
+          </div>
+          {% else %}
+          <div class="queue-empty-msg">No semantic relations linked.</div>
           {% endfor %}
         </div>
       </div>
@@ -237,4 +282,136 @@
   </div>
 </div>
 
+<!-- Decision Gate Creation Modal -->
+<div id="decision-gate-modal" class="codec-modal" style="display: none;">
+  <div class="codec-modal-content">
+    <div class="codec-modal-header">
+      <span>⚡ CREATE DECISION GATE AT FRONTIER</span>
+      <button class="modal-close-btn" onclick="closeDecisionGateModal()">✕</button>
+    </div>
+    <form method="POST" action="{{ url_for('thread_create_decision_gate', thread_id=thread.id) }}">
+      <div class="codec-modal-body">
+        <label style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase;">
+          Decision Gate Title:
+        </label>
+        <input type="text" name="title" class="search-input" style="width: 100%; margin: 4px 0 10px 0;" placeholder="e.g. Choose Persistence Architecture" required>
+
+        <label style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase;">
+          Option 1 Title &amp; Description:
+        </label>
+        <input type="text" name="opt1_title" class="search-input" style="width: 100%; margin: 4px 0;" placeholder="e.g. Relational SQLite Projection" required>
+        <input type="text" name="opt1_desc" class="search-input" style="width: 100%; margin: 0 0 10px 0; font-size: 0.75rem;" placeholder="e.g. Fast direct reads, deterministic indexing">
+
+        <label style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase;">
+          Option 2 Title &amp; Description:
+        </label>
+        <input type="text" name="opt2_title" class="search-input" style="width: 100%; margin: 4px 0;" placeholder="e.g. Pure Event-Log Replay" required>
+        <input type="text" name="opt2_desc" class="search-input" style="width: 100%; margin: 0 0 10px 0; font-size: 0.75rem;" placeholder="e.g. Complete audit trail, slightly higher query complexity">
+
+        <div style="display: flex; gap: 12px; margin-top: 6px;">
+          <div style="flex: 1;">
+            <label style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase;">
+              Recommended Option:
+            </label>
+            <select name="recommended" class="channel-thread-select" style="width: 100%; margin-top: 4px;">
+              <option value="1">Option 1</option>
+              <option value="2">Option 2</option>
+            </select>
+          </div>
+          <div style="flex: 1;">
+            <label style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase;">
+              Estimated Human Attention:
+            </label>
+            <input type="text" name="attention" class="search-input" style="width: 100%; margin-top: 4px;" value="2–5 min">
+          </div>
+        </div>
+      </div>
+      <div class="codec-modal-footer">
+        <button type="button" class="btn-action" onclick="closeDecisionGateModal()">Cancel</button>
+        <button type="submit" class="btn-action btn-warning">Insert Decision Gate</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Cross-Thread Relation Modal -->
+<div id="relation-modal" class="codec-modal" style="display: none;">
+  <div class="codec-modal-content">
+    <div class="codec-modal-header">
+      <span>🔗 LINK CROSS-THREAD RELATION</span>
+      <button class="modal-close-btn" onclick="closeRelationModal()">✕</button>
+    </div>
+    <form method="POST" action="{{ url_for('thread_add_relation', thread_id=thread.id) }}">
+      <div class="codec-modal-body">
+        <label style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase;">
+          Target Thread:
+        </label>
+        <select name="target_id" class="channel-thread-select" style="width: 100%; margin: 4px 0 10px 0;" required>
+          {% for ot in all_living_threads if ot.id != thread.id %}
+          <option value="{{ ot.id }}">{{ ot.name }} ({{ ot.project.name if ot.project else 'General' }})</option>
+          {% endfor %}
+        </select>
+
+        <label style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase;">
+          Relationship Type:
+        </label>
+        <select name="relation_type" class="channel-thread-select" style="width: 100%; margin: 4px 0 10px 0;">
+          <option value="DEPENDS_ON">DEPENDS ON (Needs target thread completed first)</option>
+          <option value="BLOCKED_BY">BLOCKED BY (Target thread has an open blocker)</option>
+          <option value="SPAWNED_FROM">SPAWNED FROM (Exploratory child of target thread)</option>
+          <option value="INFORMED_BY">INFORMED BY (Shares data or baseline research)</option>
+          <option value="SUPERSEDES">SUPERSEDES (Replaces previous approach)</option>
+        </select>
+
+        <label style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase;">
+          Optional Context Note:
+        </label>
+        <input type="text" name="note" class="search-input" style="width: 100%; margin-top: 4px;" placeholder="e.g. Depends on schema export before tests can execute">
+      </div>
+      <div class="codec-modal-footer">
+        <button type="button" class="btn-action" onclick="closeRelationModal()">Cancel</button>
+        <button type="submit" class="btn-action btn-primary">Link Relation</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Git Commit & Push Modal -->
+<div id="git-commit-modal" class="codec-modal" style="display: none;">
+  <div class="codec-modal-content">
+    <div class="codec-modal-header">
+      <span>🌿 STAGE, COMMIT &amp; SNAPSHOT GIT WORKING TREE</span>
+      <button class="modal-close-btn" onclick="closeGitCommitModal()">✕</button>
+    </div>
+    <form method="POST" action="{{ url_for('thread_git_commit', thread_id=thread.id) }}">
+      <div class="codec-modal-body">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+          <label style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase;">
+            Commit Message:
+          </label>
+          <button type="button" class="btn-action" style="font-size: 0.65rem; padding: 2px 6px; color: var(--codec-green); border-color: var(--codec-green);" onclick="autoGenerateCommitMessage('{{ thread.id }}')">
+            🪄 Auto-Generate from Braid
+          </button>
+        </div>
+        <textarea name="commit_message" id="git-commit-message-input" class="modal-textarea" rows="4" placeholder="e.g. feat(horizon1): complete live git sync, ai context packet, decision gates, and relations" required>feat(horizon1): complete live git sync, ai context packet, decision gates, and relations</textarea>
+
+        <div style="margin-top: 12px; display: flex; align-items: center; gap: 8px;">
+          <input type="checkbox" name="do_push" id="commit-do-push" style="accent-color: var(--codec-green); width: 16px; height: 16px;">
+          <label for="commit-do-push" style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-bright); cursor: pointer;">
+            Also push to remote tracking branch (<code>git push</code>)
+          </label>
+        </div>
+      </div>
+      <div class="codec-modal-footer">
+        <button type="button" class="btn-action" onclick="closeGitCommitModal()">Cancel</button>
+        <button type="submit" class="btn-action btn-primary" style="background: var(--codec-green); border-color: var(--codec-green);">
+          ✓ Execute Git Commit
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
 {% endblock %}
+
+

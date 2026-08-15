@@ -14,7 +14,10 @@ from domain.queries import (
     get_thread_by_id,
     get_current_focus_thread,
     VALID_DOMAINS,
-    ATTENTION_MODES
+    ATTENTION_MODES,
+    compile_ai_context_packet,
+    generate_smart_commit_message,
+    get_thread_relations
 )
 from domain.transitions import (
     set_current_focus,
@@ -30,7 +33,15 @@ from domain.transitions import (
     delete_surface,
     parse_capture_transcript,
     commit_capture,
-    log_friction
+    log_friction,
+    add_thread_relation,
+    delete_thread_relation,
+    create_decision_gate
+)
+from domain.git_service import (
+    sync_thread_git_working_set,
+    inspect_git_working_set,
+    git_commit_working_set
 )
 from seed import seed_database
 
@@ -133,9 +144,13 @@ def create_app(config_class=Config):
         thread = get_thread_by_id(g.db, thread_id)
         if not thread:
             abort(404)
+        relations = get_thread_relations(g.db, thread_id)
+        all_living_threads = get_living_threads(g.db, include_parked=True)
         return render_template(
             "thread_workspace.html",
             thread=thread,
+            relations=relations,
+            all_living_threads=all_living_threads,
             active_view="workspace",
             current_domain=thread.domain,
             current_mode=thread.attention_fit or "FOCUS"
@@ -377,6 +392,129 @@ def create_app(config_class=Config):
         if thread_id:
             return redirect(url_for("thread_workspace_view", thread_id=thread_id))
         return redirect(url_for("cockpit"))
+
+    # -------------------------------------------------------------
+    # Horizon 1: Git Sync, Context Packets & Cross-Thread Relations
+    # -------------------------------------------------------------
+
+    @app.route("/threads/<int:thread_id>/git-sync", methods=["POST"])
+    def thread_git_sync(thread_id: int):
+        working_set = sync_thread_git_working_set(g.db, thread_id, append_diff_event=True)
+        thread = get_thread_by_id(g.db, thread_id)
+        if request.headers.get("HX-Request"):
+            return render_template("_working_set.html", thread=thread)
+        return redirect(url_for("thread_workspace_view", thread_id=thread_id))
+
+    @app.route("/threads/<int:thread_id>/git-commit", methods=["POST"])
+    def thread_git_commit(thread_id: int):
+        commit_message = request.form.get("commit_message", "").strip()
+        do_push = request.form.get("do_push") in ["true", "on", "1"]
+
+        if not commit_message:
+            commit_message = "feat: checkpoint update from Codec control plane"
+
+        thread = get_thread_by_id(g.db, thread_id)
+        if not thread:
+            abort(404)
+
+        ws = thread.get_working_set()
+        repo_path = ws.get("repo_path") or "."
+        for s in thread.surfaces:
+            if s.local_path and os.path.exists(s.local_path):
+                repo_path = s.local_path
+                break
+
+        res = git_commit_working_set(repo_path, commit_message, do_push=do_push)
+
+        if res.get("status") == "success":
+            new_commit = res.get("commit")
+            ev_summary = f"🌿 Git commit created: @{new_commit} — {commit_message}"
+            if res.get("pushed"):
+                ev_summary += " (pushed to remote)"
+            event = Event(
+                thread_id=thread.id,
+                event_type="GIT_COMMIT",
+                summary=ev_summary,
+                payload_json=json.dumps(res),
+                occurred_at=utcnow()
+            )
+            g.db.add(event)
+
+            # Sync working set to refresh chips to clean state
+            sync_thread_git_working_set(g.db, thread.id)
+            g.db.commit()
+
+        return redirect(url_for("thread_workspace_view", thread_id=thread.id))
+
+    @app.route("/threads/<int:thread_id>/generate-commit-message", methods=["GET"])
+    def thread_generate_commit_message(thread_id: int):
+        thread = get_thread_by_id(g.db, thread_id)
+        if not thread:
+            return jsonify({"error": "Thread not found"}), 404
+        msg = generate_smart_commit_message(thread)
+        return jsonify({
+            "status": "ok",
+            "thread_id": thread_id,
+            "commit_message": msg
+        })
+
+
+
+    @app.route("/threads/<int:thread_id>/context-packet", methods=["GET"])
+    def thread_context_packet(thread_id: int):
+        thread = get_thread_by_id(g.db, thread_id)
+        if not thread:
+            return jsonify({"error": "Thread not found"}), 404
+        packet_md = compile_ai_context_packet(thread)
+        return jsonify({
+            "status": "ok",
+            "thread_id": thread_id,
+            "thread_name": thread.name,
+            "packet": packet_md
+        })
+
+    @app.route("/threads/<int:thread_id>/decision-gate", methods=["POST"])
+    def thread_create_decision_gate(thread_id: int):
+        title = request.form.get("title", "").strip()
+        opt1_title = request.form.get("opt1_title", "").strip()
+        opt1_desc = request.form.get("opt1_desc", "").strip()
+        opt2_title = request.form.get("opt2_title", "").strip()
+        opt2_desc = request.form.get("opt2_desc", "").strip()
+        opt3_title = request.form.get("opt3_title", "").strip()
+        opt3_desc = request.form.get("opt3_desc", "").strip()
+        recommended = request.form.get("recommended", "1")
+        attention = request.form.get("attention", "2–5 min")
+
+        options = []
+        if opt1_title:
+            options.append({"id": "opt1", "title": opt1_title, "desc": opt1_desc, "recommended": recommended == "1"})
+        if opt2_title:
+            options.append({"id": "opt2", "title": opt2_title, "desc": opt2_desc, "recommended": recommended == "2"})
+        if opt3_title:
+            options.append({"id": "opt3", "title": opt3_title, "desc": opt3_desc, "recommended": recommended == "3"})
+
+        if title and options:
+            create_decision_gate(g.db, thread_id, decision_title=title, options=options, estimated_attention=attention)
+
+        return redirect(url_for("thread_workspace_view", thread_id=thread_id))
+
+    @app.route("/threads/<int:thread_id>/relations", methods=["POST"])
+    def thread_add_relation(thread_id: int):
+        target_id = request.form.get("target_id", type=int)
+        relation_type = request.form.get("relation_type", "DEPENDS_ON")
+        note = request.form.get("note", "").strip()
+        if target_id and target_id != thread_id:
+            add_thread_relation(g.db, source_id=thread_id, target_id=target_id, relation_type=relation_type, note=note)
+        return redirect(url_for("thread_workspace_view", thread_id=thread_id))
+
+    @app.route("/relations/<int:relation_id>/delete", methods=["POST"])
+    def relation_delete(relation_id: int):
+        thread_id = request.form.get("thread_id", type=int)
+        delete_thread_relation(g.db, relation_id)
+        if thread_id:
+            return redirect(url_for("thread_workspace_view", thread_id=thread_id))
+        return redirect(url_for("cockpit"))
+
 
     # -------------------------------------------------------------
     # Universal Capture & Friction Logging Endpoints

@@ -143,6 +143,26 @@ class Thread(Base):
         days = hours // 24
         return f"{days}d ago"
 
+    @property
+    def is_stale_frontier(self) -> bool:
+        """Returns True if thread is living and untouched for >3 days."""
+        if not self.is_living or not self.last_active_at:
+            return False
+        now = datetime.now(timezone.utc)
+        last_active = self.last_active_at if self.last_active_at.tzinfo else self.last_active_at.replace(tzinfo=timezone.utc)
+        diff = now - last_active
+        return diff.total_seconds() > (3 * 86400)
+
+    @property
+    def is_cold_storage(self) -> bool:
+        """Returns True if thread is parked and untouched for >7 days."""
+        if self.state != "PARKED" or not self.last_active_at:
+            return False
+        now = datetime.now(timezone.utc)
+        last_active = self.last_active_at if self.last_active_at.tzinfo else self.last_active_at.replace(tzinfo=timezone.utc)
+        diff = now - last_active
+        return diff.total_seconds() > (7 * 86400)
+
     def get_working_set(self) -> Dict[str, Any]:
         """Return parsed working set dictionary."""
         if not self.working_set_json:

@@ -96,6 +96,80 @@ function closeNewThreadModal() {
   if (modal) modal.style.display = 'none';
 }
 
+function openDecisionGateModal() {
+  const modal = document.getElementById('decision-gate-modal');
+  if (modal) modal.style.display = 'flex';
+}
+
+function closeDecisionGateModal() {
+  const modal = document.getElementById('decision-gate-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+function openRelationModal() {
+  const modal = document.getElementById('relation-modal');
+  if (modal) modal.style.display = 'flex';
+}
+
+function closeRelationModal() {
+  const modal = document.getElementById('relation-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+function openGitCommitModal(threadId) {
+  const modal = document.getElementById('git-commit-modal');
+  if (modal) {
+    modal.style.display = 'flex';
+    const input = document.getElementById('git-commit-message-input');
+    if (input) {
+      input.focus();
+      input.select();
+    }
+  }
+}
+
+function closeGitCommitModal() {
+  const modal = document.getElementById('git-commit-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+async function autoGenerateCommitMessage(threadId) {
+  try {
+    const input = document.getElementById('git-commit-message-input');
+    if (input) {
+      input.value = "Synthesizing commit message from Activity Braid...";
+    }
+    const res = await fetch(`/threads/${threadId}/generate-commit-message`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.commit_message && input) {
+        input.value = data.commit_message;
+        playAlertSound();
+        showTacticalToast("🪄 Commit message synthesized from latest braid events!");
+      }
+    }
+  } catch (err) {
+    console.error("Failed to auto-generate commit message:", err);
+  }
+}
+
+async function copyContextPacket(threadId) {
+  try {
+    const res = await fetch(`/threads/${threadId}/context-packet`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.packet) {
+        await navigator.clipboard.writeText(data.packet);
+        playCodecRing();
+        showTacticalToast(`📋 Context Packet for '${data.thread_name}' copied to clipboard! Ready to paste into ChatGPT, Claude, or Agent.`);
+      }
+    }
+  } catch (err) {
+    console.error('Failed to copy context packet:', err);
+    alert('Failed to copy context packet to clipboard.');
+  }
+}
+
 function openSurfaceModal(threadId) {
   const modal = document.getElementById('surface-modal');
   const form = document.getElementById('surface-form');

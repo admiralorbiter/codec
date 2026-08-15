@@ -27,6 +27,9 @@
       {% elif thread.state == 'PARKED' %}
       <span class="badge badge-state-parked">PARKED</span>
       {% endif %}
+      {% if thread.is_stale_frontier %}
+      <span class="badge" style="background: rgba(247, 183, 49, 0.2); color: var(--amber-alert); border: 1px solid var(--amber-alert);" title="Untouched for >3 days">⏳ STALE</span>
+      {% endif %}
     </div>
   </div>
 

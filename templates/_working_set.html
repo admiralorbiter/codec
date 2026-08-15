@@ -1,8 +1,23 @@
 {% set ws = thread.get_working_set() %}
-<div class="working-set-container">
+<div class="working-set-container" id="working-set-{{ thread.id }}">
   <div class="working-set-header">
     <span class="working-set-label">WORKING SET CONSTELLATION</span>
-    <span class="working-set-meta">SNAPSHOT // CURRENT</span>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      {% if ws.get('synced_at') %}
+      <span class="working-set-meta">SYNCED {{ ws.get('synced_at') }}</span>
+      {% endif %}
+      <button type="button" class="btn-pane-icon" style="font-size: 0.68rem; padding: 2px 8px; border: 1px solid var(--amber-alert); background: rgba(235, 179, 58, 0.15); color: var(--amber-alert); border-radius: 3px; font-weight: bold;" onclick="openGitCommitModal('{{ thread.id }}')" title="Commit &amp; Push current working tree changes">
+        📝 Commit
+      </button>
+      <form hx-post="{{ url_for('thread_git_sync', thread_id=thread.id) }}"
+            hx-target="#working-set-{{ thread.id }}"
+            hx-swap="outerHTML"
+            style="margin: 0;">
+        <button type="submit" class="btn-pane-icon" style="font-size: 0.68rem; padding: 2px 6px; border: 1px solid var(--border-tactical); background: var(--bg-deep); color: var(--codec-green); border-radius: 3px;" title="Inspect local Git repository &amp; update working tree diffs">
+          🔄 Sync Git
+        </button>
+      </form>
+    </div>
   </div>
 
   <div class="working-set-chips">

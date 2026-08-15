@@ -56,6 +56,12 @@
             hx-swap="innerHTML">
           <td class="table-thread-name">
             {{ thread.name }}
+            {% if thread.is_stale_frontier %}
+            <span class="badge" style="font-size: 0.62rem; padding: 1px 4px; background: rgba(247, 183, 49, 0.2); color: var(--amber-alert); border: 1px solid var(--amber-alert);" title="Untouched for >3 days">⏳ STALE</span>
+            {% endif %}
+            {% if thread.is_cold_storage %}
+            <span class="badge" style="font-size: 0.62rem; padding: 1px 4px; background: rgba(165, 94, 234, 0.2); color: var(--purple-deep); border: 1px solid var(--purple-deep);" title="Parked for >7 days">📦 COLD</span>
+            {% endif %}
           </td>
           <td>
             <span class="badge" style="background: var(--bg-deep); color: var(--text-muted);">
