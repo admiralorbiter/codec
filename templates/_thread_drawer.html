@@ -54,8 +54,8 @@
     </button>
     {% endif %}
 
-    <button class="btn-action" onclick="copyContextPacket('{{ thread.id }}')" style="color: var(--codec-green); border-color: var(--codec-green);" title="Copy token-efficient markdown context packet to paste into ChatGPT, Claude, or Agent">
-      📋 Copy Context Packet
+    <button class="btn-action" onclick="openContextRouterModal('{{ thread.id }}', '{{ thread.name|escape }}')" style="color: var(--codec-green); border-color: var(--codec-green);" title="Open Context Router &amp; compile target-specific prompt envelopes (Antigravity, ChatGPT, Claude, Audio)">
+      📋 Context Router
     </button>
 
     {% if not thread.is_current_focus %}

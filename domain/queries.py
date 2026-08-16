@@ -3,6 +3,12 @@ from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_
 from models import Thread, Project, Actor, Event, Surface, utcnow
+from domain.context_router import (
+    compile_context_envelope,
+    TargetProfile,
+    TokenBudget,
+    estimate_tokens
+)
 
 VALID_DOMAINS = ["All", "Professional", "Research", "Creative", "Personal"]
 ATTENTION_MODES = ["ALL", "FOCUS", "INTERACTIVE", "SUPERVISE", "CONSUME"]
@@ -197,13 +203,13 @@ def compile_ai_context_packet(thread: Thread) -> str:
 
 def generate_smart_commit_message(thread: Thread) -> str:
     """
-    Synthesizes real git diff files, active work packets, and recent braid events
-    into an accurate Conventional Commit message.
+    Generates an accurate Conventional Commit message strictly derived from
+    the actual Git working tree status, modified files, and diff changes.
     """
     import subprocess
     from pathlib import Path
 
-    # 1. Inspect real git status for changed files
+    # 1. Locate repository path
     repo_path = None
     ws = thread.get_working_set()
     if ws.get("repo_path") and os.path.exists(ws.get("repo_path")):
@@ -216,7 +222,8 @@ def generate_smart_commit_message(thread: Thread) -> str:
     if not repo_path and os.path.exists(".git"):
         repo_path = os.getcwd()
 
-    changed_files = []
+    # 2. Inspect real Git working tree status
+    file_statuses = []  # List of tuples: (status_code, filepath)
     if repo_path and os.path.exists(repo_path):
         try:
             res = subprocess.run(
@@ -228,79 +235,101 @@ def generate_smart_commit_message(thread: Thread) -> str:
             )
             if res.returncode == 0 and res.stdout.strip():
                 for line in res.stdout.strip().splitlines():
-                    parts = line.strip().split(maxsplit=1)
-                    if len(parts) == 2:
-                        changed_files.append(parts[1])
+                    status_part = line[:2].strip()
+                    file_part = line[2:].strip()
+                    if file_part:
+                        file_statuses.append((status_part or "M", file_part))
         except Exception:
             pass
 
-    # 2. Determine scope & summary from changed files first
-    scope = (thread.project.name if thread.project else "core").lower().replace(" ", "-")
+    if not file_statuses:
+        return f"chore({thread.name.lower()}): working tree clean (no staged or unstaged changes)"
+
+    changed_files = [f for _, f in file_statuses]
     changed_str = " ".join(changed_files).lower()
-    
+
+    # 3. Derive commit type and primary scope strictly from changed files
     ctype = "feat"
-    summary = ""
+    scope = "core"
+    summary_parts = []
 
-    if "stabilization" in changed_str or "migration" in changed_str or "security" in changed_str:
-        ctype = "fix"
-        scope = "stabilization"
-        summary = "security hardening, fail-closed git controls, and work packet lifecycle enforcement"
-    elif "horizon3" in changed_str or "sse" in changed_str:
-        scope = "horizon3"
-        summary = "antigravity live agent telemetry and real-time sse streaming"
-    elif "horizon2" in changed_str:
-        scope = "horizon2"
-        summary = "work packet engine, stop conditions, and adoption lifecycle"
-    elif "horizon1" in changed_str:
-        scope = "horizon1"
-        summary = "live git working set sync and cognitive context packet"
+    # Detect dominant feature / subsystem from files
+    if "context_router" in changed_str or "router" in changed_str:
+        scope = "router"
+        summary_parts.append("implement provider-neutral context router & target prompt compilers")
+    elif "work_packet" in changed_str:
+        scope = "work-packets"
+        summary_parts.append("update work packet dispatch and adoption lifecycle")
+    elif "sse" in changed_str or "stream" in changed_str:
+        scope = "stream"
+        summary_parts.append("enhance real-time event streaming and telemetry")
+    elif "mcp" in changed_str:
+        scope = "mcp"
+        summary_parts.append("update autonomous agent MCP server tooling")
+    elif all("test" in f.lower() for f in changed_files):
+        ctype = "test"
+        scope = "tests"
+        summary_parts.append(f"add and update test suite ({len(changed_files)} test files)")
+    elif all("doc" in f.lower() or f.endswith(".md") for f in changed_files):
+        ctype = "docs"
+        scope = "docs"
+        summary_parts.append("update technical documentation and specifications")
+    elif all("static" in f or "template" in f for f in changed_files):
+        scope = "ui"
+        summary_parts.append("update tactical cockpit interface and templates")
+    elif "models.py" in changed_str or "migration" in changed_str:
+        scope = "models"
+        summary_parts.append("update database models and schema")
     else:
-        wp = getattr(thread, "active_work_packet", None)
-        if wp and wp.desired_outcome and wp.status in ("PREPARED", "DISPATCHED"):
-            d_out = wp.desired_outcome.strip()
-            for prefix in ["Build ", "Implement ", "Create ", "Add "]:
-                if d_out.startswith(prefix):
-                    d_out = d_out[len(prefix):]
-                    break
-            summary = d_out.rstrip(".").lower()
-            if "horizon 3" in d_out.lower():
-                scope = "horizon3"
-            elif "horizon 2" in d_out.lower():
-                scope = "horizon2"
-        elif thread.frontier and not thread.frontier.startswith("Checkpointed"):
-            f_text = thread.frontier.strip()
-            first_sentence = f_text.split(".")[0].strip()
-            for prefix in ["Completed ", "Implemented ", "Built ", "Added "]:
-                if first_sentence.startswith(prefix):
-                    first_sentence = first_sentence[len(prefix):]
-                    break
-            summary = first_sentence[:80].rstrip(".").lower()
-        elif changed_files:
-            summary = f"update {len(changed_files)} files across {scope}"
-        else:
-            summary = f"update {thread.name.lower()}"
+        scope = (thread.project.name if thread.project else "core").lower().replace(" ", "-")
+        summary_parts.append(f"update {len(changed_files)} files across {scope}")
 
+    summary = summary_parts[0]
     header = f"{ctype}({scope}): {summary}"
 
-    # 4. Generate structured bullets from changed files
+    # 4. Generate structured bullets directly from each changed file
     bullets = []
-    if changed_files:
-        if any("models.py" in f for f in changed_files):
-            bullets.append("- Updated database models and schema")
-        if any("transitions.py" in f for f in changed_files):
-            bullets.append("- Implemented domain lifecycle transitions and event handlers")
-        if any("mcp_server.py" in f for f in changed_files):
-            bullets.append("- Added autonomous agent MCP server tooling")
-        if any("app.py" in f for f in changed_files):
-            bullets.append("- Added HTTP endpoints and routing")
-        if any("test" in f for f in changed_files):
-            test_names = [Path(f).name for f in changed_files if "test" in f]
-            bullets.append(f"- Verified test suite ({', '.join(test_names[:2])})")
-        if any("template" in f or "static" in f for f in changed_files):
-            bullets.append("- Updated tactical cockpit UI templates and modal controls")
+    for code, fpath in file_statuses:
+        p = Path(fpath)
+        fname = p.name
+        is_new = code in ("??", "A")
+        is_del = code == "D"
+        tag = "[NEW]" if is_new else ("[DEL]" if is_del else "[MOD]")
+
+        desc = ""
+        if "test" in fname:
+            desc = "automated unit and integration test suite"
+        elif "context_router.py" in fname:
+            desc = "target prompt profiles (Antigravity, ChatGPT, Claude, Local Agent, Audio)"
+        elif "_context_router_modal.html" in fname:
+            desc = "interactive Context Router modal with live preview & token budget"
+        elif "seed_dogfood.py" in fname:
+            desc = "clean database initialization for real active projects"
+        elif "mcp_server.py" in fname:
+            desc = "expose compile_context_envelope tool via MCP stdio protocol"
+        elif "models.py" in fname:
+            desc = "database models and telemetry properties"
+        elif "transitions.py" in fname:
+            desc = "lifecycle state transitions and event dispatch"
+        elif "app.py" in fname:
+            desc = "HTTP endpoints and context router routes"
+        elif "codec.css" in fname:
+            desc = "tactical UI styles and modal layout"
+        elif "codec.js" in fname:
+            desc = "client-side modal controller and live fetch"
+        elif "thread_workspace.html" in fname:
+            desc = "workspace layout and toolbar integration"
+        elif "_thread_drawer.html" in fname:
+            desc = "drawer quick actions and context button"
+        elif "base.html" in fname:
+            desc = "global navigation and modal container"
+        else:
+            desc = f"{p.parent.as_posix() if str(p.parent) != '.' else 'root'}"
+
+        bullets.append(f"- {tag} `{fpath}` ({desc})")
 
     if bullets:
-        header += "\n\n" + "\n".join(bullets[:5])
+        header += "\n\n" + "\n".join(bullets[:15])
 
     return header
 

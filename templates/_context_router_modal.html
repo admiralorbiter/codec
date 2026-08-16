@@ -1,0 +1,85 @@
+﻿<div id="context-router-modal" class="codec-modal" style="display: none;">
+  <div class="codec-modal-content context-router-modal-content">
+    
+    <!-- Modal Header -->
+    <div class="codec-modal-header">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="color: var(--codec-green); font-weight: bold;">📋 CONTEXT ROUTER</span>
+        <span class="nav-divider">//</span>
+        <span id="router-thread-title" style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-bright);">Target Prompt Envelope</span>
+      </div>
+      <button class="modal-close-btn" onclick="closeContextRouterModal()">✕</button>
+    </div>
+
+    <!-- Modal Body -->
+    <div class="context-router-body">
+      
+      <!-- Top Control Bar: Target Profile & Token Budget Selectors -->
+      <div class="router-controls-strip">
+        <div class="router-section">
+          <span class="router-control-label">TARGET AGENT / SURFACE:</span>
+          <div class="router-target-pills" id="router-target-selector">
+            <button type="button" class="btn-target-pill is-active" data-target="ANTIGRAVITY" onclick="selectRouterTarget('ANTIGRAVITY')">
+              🤖 Antigravity
+            </button>
+            <button type="button" class="btn-target-pill" data-target="CHATGPT" onclick="selectRouterTarget('CHATGPT')">
+              🧠 ChatGPT
+            </button>
+            <button type="button" class="btn-target-pill" data-target="CLAUDE" onclick="selectRouterTarget('CLAUDE')">
+              ⚡ Claude
+            </button>
+            <button type="button" class="btn-target-pill" data-target="LOCAL_AGENT" onclick="selectRouterTarget('LOCAL_AGENT')">
+              💻 Local Agent
+            </button>
+            <button type="button" class="btn-target-pill" data-target="AUDIO_DIGEST" onclick="selectRouterTarget('AUDIO_DIGEST')">
+              🎙 Audio Digest
+            </button>
+          </div>
+        </div>
+
+        <div class="router-section">
+          <span class="router-control-label">TOKEN BUDGET:</span>
+          <div class="router-budget-pills" id="router-budget-selector">
+            <button type="button" class="btn-budget-pill" data-budget="COMPACT" onclick="selectRouterBudget('COMPACT')">
+              Compact (~200t)
+            </button>
+            <button type="button" class="btn-budget-pill is-active" data-budget="STANDARD" onclick="selectRouterBudget('STANDARD')">
+              Standard (~600t)
+            </button>
+            <button type="button" class="btn-budget-pill" data-budget="EXHAUSTIVE" onclick="selectRouterBudget('EXHAUSTIVE')">
+              Deep Handoff (~1.5kt)
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Preview Area -->
+      <div class="router-preview-container">
+        <div class="router-preview-header">
+          <span id="router-target-desc" class="router-desc-text">Optimized for Antigravity with workspace tools, git telemetry & stop conditions</span>
+          <span id="router-token-badge" class="router-token-badge">~0 tokens</span>
+        </div>
+        <textarea id="router-preview-text" class="router-preview-textarea" readonly></textarea>
+      </div>
+
+      <!-- Action Footer -->
+      <div class="codec-modal-actions router-footer-actions">
+        <div class="router-footer-left">
+          <span style="font-family: var(--font-mono); font-size: 0.68rem; color: var(--text-dim);">
+            Principle: <em>Store richly. Compile sparingly.</em>
+          </span>
+        </div>
+        <div class="router-footer-right">
+          <button type="button" class="btn-action" onclick="downloadContextEnvelope()">
+            ⬇ Download .md
+          </button>
+          <button type="button" class="btn-action btn-primary" id="btn-router-copy" onclick="copyRouterEnvelopeToClipboard()">
+            📋 Copy Envelope to Clipboard
+          </button>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</div>

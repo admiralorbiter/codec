@@ -19,6 +19,7 @@ from domain.queries import (
     VALID_DOMAINS,
     ATTENTION_MODES,
     compile_ai_context_packet,
+    compile_context_envelope,
     generate_smart_commit_message,
     get_thread_relations
 )
@@ -53,6 +54,7 @@ from domain.git_service import (
 )
 from domain.migrations import run_migrations
 from seed import seed_database
+from seed_dogfood import seed_dogfood_database
 
 def create_app(config_class=Config):
     app = Flask(__name__)
@@ -94,7 +96,12 @@ def create_app(config_class=Config):
     @app.cli.command("seed-db")
     def cli_seed_db():
         seed_database(engine)
-        print("Database seeded successfully via CLI.")
+        print("Demo database seeded successfully via CLI.")
+
+    @app.cli.command("seed-dogfood")
+    def cli_seed_dogfood():
+        seed_dogfood_database(engine)
+        print("Clean dogfood database initialized with real active threads.")
 
     # Ensure tables exist on boot
     Base.metadata.create_all(engine)
@@ -502,6 +509,28 @@ def create_app(config_class=Config):
             "thread_id": thread_id,
             "thread_name": thread.name,
             "packet": packet_md
+        })
+
+    @app.route("/threads/<int:thread_id>/context-router/compile", methods=["POST", "GET"])
+    def thread_context_router_compile(thread_id: int):
+        thread = get_thread_by_id(g.db, thread_id)
+        if not thread:
+            return jsonify({"error": "Thread not found"}), 404
+        
+        target = request.values.get("target") or (request.json.get("target") if request.is_json else None) or "ANTIGRAVITY"
+        budget = request.values.get("budget") or (request.json.get("budget") if request.is_json else None) or "STANDARD"
+        
+        relations = get_thread_relations(g.db, thread_id)
+        envelope = compile_context_envelope(
+            thread=thread,
+            target=target,
+            budget=budget,
+            include_relations=True,
+            relations=relations
+        )
+        return jsonify({
+            "status": "ok",
+            **envelope
         })
 
     @app.route("/threads/<int:thread_id>/decision-gate", methods=["POST"])

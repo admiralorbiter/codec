@@ -29,8 +29,8 @@
       <button class="btn-tool" onclick="openDecisionGateModal()" title="Create an interactive decision fork at the frontier">
         ⚡ + Decision Gate
       </button>
-      <button class="btn-tool" onclick="copyContextPacket('{{ thread.id }}')" title="Copy token-efficient markdown context packet to paste into ChatGPT, Claude, or Agent">
-        📋 Copy Context
+      <button class="btn-tool" onclick="openContextRouterModal('{{ thread.id }}', '{{ thread.name|escape }}')" title="Open Context Router &amp; compile target-specific prompt envelopes (Antigravity, ChatGPT, Claude, Audio)">
+        📋 Context Router
       </button>
     </div>
 

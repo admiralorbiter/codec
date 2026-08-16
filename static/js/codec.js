@@ -790,6 +790,123 @@ function initLiveStream(threadId) {
   }
 }
 
+// -------------------------------------------------------------
+// Horizon 4: Context Router & Target Prompt Compilers
+// -------------------------------------------------------------
+let currentRouterThreadId = null;
+let currentRouterTarget = 'ANTIGRAVITY';
+let currentRouterBudget = 'STANDARD';
+
+const TARGET_DESCRIPTIONS = {
+  'ANTIGRAVITY': 'Optimized for Antigravity with workspace tools, git telemetry & stop conditions',
+  'CHATGPT': 'Optimized for ChatGPT / Reasoning models with mental model, trade-offs & constraints',
+  'CLAUDE': 'Optimized for Claude with XML tags, exact file boundaries & diff expectations',
+  'LOCAL_AGENT': 'Ultra-compact minimal token envelope for fast local compute loops',
+  'AUDIO_DIGEST': 'Conversational prose narrative formatted for text-to-speech / listening'
+};
+
+async function openContextRouterModal(threadId, threadName) {
+  currentRouterThreadId = threadId;
+  const modal = document.getElementById('context-router-modal');
+  const titleEl = document.getElementById('router-thread-title');
+  if (titleEl) {
+    titleEl.textContent = threadName ? `${threadName} (#${threadId})` : `Thread #${threadId}`;
+  }
+  if (modal) {
+    modal.style.display = 'flex';
+  }
+  await fetchAndRenderContextEnvelope();
+}
+
+function closeContextRouterModal() {
+  const modal = document.getElementById('context-router-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+async function selectRouterTarget(target) {
+  currentRouterTarget = target;
+  document.querySelectorAll('#router-target-selector .btn-target-pill').forEach(btn => {
+    btn.classList.toggle('is-active', btn.dataset.target === target);
+  });
+  const descEl = document.getElementById('router-target-desc');
+  if (descEl) {
+    descEl.textContent = TARGET_DESCRIPTIONS[target] || 'Target prompt envelope';
+  }
+  await fetchAndRenderContextEnvelope();
+}
+
+async function selectRouterBudget(budget) {
+  currentRouterBudget = budget;
+  document.querySelectorAll('#router-budget-selector .btn-budget-pill').forEach(btn => {
+    btn.classList.toggle('is-active', btn.dataset.budget === budget);
+  });
+  await fetchAndRenderContextEnvelope();
+}
+
+async function fetchAndRenderContextEnvelope() {
+  if (!currentRouterThreadId) return;
+  const previewEl = document.getElementById('router-preview-text');
+  const tokenBadge = document.getElementById('router-token-badge');
+  if (previewEl) previewEl.value = 'Compiling target context envelope...';
+
+  try {
+    const res = await fetch(`/threads/${currentRouterThreadId}/context-router/compile?target=${currentRouterTarget}&budget=${currentRouterBudget}`);
+    const data = await res.json();
+    if (data.status === 'ok') {
+      if (previewEl) previewEl.value = data.content;
+      if (tokenBadge) tokenBadge.textContent = `~${data.token_estimate} tokens`;
+    } else {
+      if (previewEl) previewEl.value = 'Error compiling context envelope: ' + (data.error || 'Unknown error');
+    }
+  } catch (err) {
+    console.error('Context Router fetch error:', err);
+    if (previewEl) previewEl.value = 'Failed to fetch context envelope.';
+  }
+}
+
+async function copyRouterEnvelopeToClipboard() {
+  const previewEl = document.getElementById('router-preview-text');
+  const copyBtn = document.getElementById('btn-router-copy');
+  if (!previewEl || !previewEl.value) return;
+
+  try {
+    await navigator.clipboard.writeText(previewEl.value);
+    playCodecBlip();
+    if (copyBtn) {
+      const originalText = copyBtn.textContent;
+      copyBtn.textContent = '✓ Copied!';
+      copyBtn.style.background = 'var(--codec-green)';
+      copyBtn.style.color = '#000';
+      setTimeout(() => {
+        copyBtn.textContent = originalText;
+        copyBtn.style.background = '';
+        copyBtn.style.color = '';
+      }, 1800);
+    }
+    showTacticalToast(`📋 ${currentRouterTarget} Context Envelope Copied!`);
+  } catch (err) {
+    console.error('Clipboard copy failed:', err);
+    previewEl.select();
+    document.execCommand('copy');
+    showTacticalToast(`📋 Context Copied!`);
+  }
+}
+
+function downloadContextEnvelope() {
+  const previewEl = document.getElementById('router-preview-text');
+  if (!previewEl || !previewEl.value) return;
+  const blob = new Blob([previewEl.value], { type: 'text/markdown;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `codec_thread_${currentRouterThreadId}_${currentRouterTarget.toLowerCase()}_context.md`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showTacticalToast('⬇ Context file downloaded');
+}
+
 
 
 

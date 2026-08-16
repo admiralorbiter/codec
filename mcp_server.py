@@ -7,7 +7,8 @@ from sqlalchemy.orm import sessionmaker, scoped_session
 
 from config import Config
 from models import Base, Thread, Project, Event, Surface
-from domain.queries import get_living_threads, get_thread_by_id
+from domain.queries import get_living_threads, get_thread_by_id, get_thread_relations
+from domain.context_router import compile_context_envelope
 from domain.transitions import (
     append_event,
     update_thread_frontier,
@@ -164,6 +165,14 @@ class CodecMCPServer:
             )
             return {'status': 'synced', 'working_set': ws, 'event': event.to_dict()}
 
+    def compile_context(self, thread_id: int, target: str = 'ANTIGRAVITY', budget: str = 'STANDARD') -> Dict[str, Any]:
+        with self.get_session() as db:
+            thread = get_thread_by_id(db, thread_id)
+            if not thread:
+                return {'error': f'Thread #{thread_id} not found'}
+            relations = get_thread_relations(db, thread_id)
+            return compile_context_envelope(thread, target=target, budget=budget, relations=relations)
+
 
 # -------------------------------------------------------------
 # Standard MCP JSON-RPC 2.0 Stdio Transport Protocol Loop
@@ -264,6 +273,19 @@ def run_mcp_stdio_server(db_uri: Optional[str] = None):
                 },
                 "required": ["thread_id", "active_file"]
             }
+        },
+        {
+            "name": "compile_context_envelope",
+            "description": "Compiles a token-budgeted, target-optimized prompt envelope for Antigravity, ChatGPT, Claude, Local Agent, or Audio Digest.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "thread_id": {"type": "integer", "description": "Thread ID"},
+                    "target": {"type": "string", "enum": ["ANTIGRAVITY", "CHATGPT", "CLAUDE", "LOCAL_AGENT", "AUDIO_DIGEST"], "description": "Target AI agent or model"},
+                    "budget": {"type": "string", "enum": ["COMPACT", "STANDARD", "EXHAUSTIVE"], "description": "Token budget size"}
+                },
+                "required": ["thread_id"]
+            }
         }
     ]
 
@@ -284,7 +306,7 @@ def run_mcp_stdio_server(db_uri: Optional[str] = None):
                     "result": {
                         "protocolVersion": "2024-11-05",
                         "capabilities": {"tools": {}},
-                        "serverInfo": {"name": "codec-control-plane", "version": "0.3.0"}
+                        "serverInfo": {"name": "codec-control-plane", "version": "0.4.0"}
                     }
                 }
             elif method == "notifications/initialized":
@@ -303,6 +325,12 @@ def run_mcp_stdio_server(db_uri: Optional[str] = None):
                     out = server.get_thread_briefing(thread_id=args.get("thread_id"))
                 elif tool_name == "get_active_work_packet":
                     out = server.get_active_work_packet(thread_id=args.get("thread_id"))
+                elif tool_name == "compile_context_envelope":
+                    out = server.compile_context(
+                        thread_id=args.get("thread_id"),
+                        target=args.get("target", "ANTIGRAVITY"),
+                        budget=args.get("budget", "STANDARD")
+                    )
                 elif tool_name == "report_progress":
                     out = server.report_progress(
                         thread_id=args.get("thread_id"),
