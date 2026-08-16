@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 import json
 from typing import Optional, List, Dict, Any
 from sqlalchemy import (
-    Column, Integer, String, Text, Boolean, DateTime, ForeignKey, Enum
+    Column, Integer, String, Text, Boolean, DateTime, ForeignKey, Enum, Float
 )
 from sqlalchemy.orm import declarative_base, relationship, backref
 
@@ -228,6 +228,12 @@ class Thread(Base):
             "is_current_focus": self.is_current_focus,
             "last_active": self.relative_last_active
         }
+
+    @property
+    def cognitive_cost(self) -> Dict[str, Any]:
+        """Calculates cognitive attention cost (Glance, Quick Choice, Deep Focus, Audio)."""
+        from domain.attention_scheduler import estimate_thread_attention_cost
+        return estimate_thread_attention_cost(self)
 
     def compile_briefing(self) -> Dict[str, Any]:
         """Deterministic re-entry capsule compiler."""
@@ -492,6 +498,68 @@ class WorkPacket(Base):
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "dispatched_at": self.dispatched_at.isoformat() if self.dispatched_at else None,
             "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+        }
+
+
+# ==========================================================================
+# Horizon 7: Epistemic Graph & Provenance Models
+# ==========================================================================
+
+class EpistemicNode(Base):
+    __tablename__ = "epistemic_nodes"
+
+    id = Column(Integer, primary_key=True)
+    thread_id = Column(Integer, ForeignKey("threads.id", ondelete="CASCADE"), nullable=False)
+    node_type = Column(String(50), nullable=False)  # CLAIM, DECISION, EVIDENCE, ARTIFACT, SOURCE
+    title = Column(String(255), nullable=False)
+    statement = Column(Text, nullable=False)
+    confidence = Column(Float, default=1.0, nullable=False)
+    status = Column(String(50), default="ACTIVE", nullable=False)  # ACTIVE, SUPERSEDED, REFUTED
+    payload_json = Column(Text, nullable=True)
+    actor_id = Column(Integer, ForeignKey("actors.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+
+    thread = relationship("Thread", backref=backref("epistemic_nodes", cascade="all, delete-orphan"))
+    actor = relationship("Actor")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "thread_id": self.thread_id,
+            "node_type": self.node_type,
+            "title": self.title,
+            "statement": self.statement,
+            "confidence": self.confidence,
+            "status": self.status,
+            "payload": json.loads(self.payload_json) if self.payload_json else {},
+            "actor_id": self.actor_id,
+            "created_at": self.created_at.isoformat() if self.created_at else None
+        }
+
+
+class EpistemicEdge(Base):
+    __tablename__ = "epistemic_edges"
+
+    id = Column(Integer, primary_key=True)
+    source_node_id = Column(Integer, ForeignKey("epistemic_nodes.id", ondelete="CASCADE"), nullable=False)
+    target_node_id = Column(Integer, ForeignKey("epistemic_nodes.id", ondelete="CASCADE"), nullable=False)
+    edge_type = Column(String(50), nullable=False)  # SUPPORTS, CONTRADICTS, SUPERSEDES, DERIVED_FROM, PRODUCED_BY
+    weight = Column(Float, default=1.0, nullable=False)
+    note = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+
+    source_node = relationship("EpistemicNode", foreign_keys=[source_node_id], backref=backref("outgoing_edges", cascade="all, delete-orphan"))
+    target_node = relationship("EpistemicNode", foreign_keys=[target_node_id], backref=backref("incoming_edges", cascade="all, delete-orphan"))
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "source_node_id": self.source_node_id,
+            "target_node_id": self.target_node_id,
+            "edge_type": self.edge_type,
+            "weight": self.weight,
+            "note": self.note,
+            "created_at": self.created_at.isoformat() if self.created_at else None
         }
 
 

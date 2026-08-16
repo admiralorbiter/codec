@@ -173,6 +173,16 @@ class CodecMCPServer:
             relations = get_thread_relations(db, thread_id)
             return compile_context_envelope(thread, target=target, budget=budget, relations=relations)
 
+    def get_os_status(self) -> Dict[str, Any]:
+        from domain.personal_os_scheduler import calculate_system_throughput_telemetry
+        with self.get_session() as db:
+            return calculate_system_throughput_telemetry(db)
+
+    def schedule_batch(self, operator_state: str = 'SUPERVISING', available_attention_minutes: int = 15) -> Dict[str, Any]:
+        from domain.personal_os_scheduler import schedule_autonomous_batch
+        with self.get_session() as db:
+            return schedule_autonomous_batch(db, operator_state=operator_state, available_attention_minutes=available_attention_minutes)
+
 
 # -------------------------------------------------------------
 # Standard MCP JSON-RPC 2.0 Stdio Transport Protocol Loop
@@ -286,6 +296,26 @@ def run_mcp_stdio_server(db_uri: Optional[str] = None):
                 },
                 "required": ["thread_id"]
             }
+        },
+        {
+            "name": "get_operating_system_status",
+            "description": "Horizon 8: Returns global system throughput, active processes, delivered packets, and attention savings.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {}
+            }
+        },
+        {
+            "name": "schedule_autonomous_batch",
+            "description": "Horizon 8: Evaluates human attention budget vs machine compute and returns an autonomous execution schedule.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "operator_state": {"type": "string", "enum": ["ACTIVE_FOCUS", "SUPERVISING", "CONSUMING", "OFFLINE_ASLEEP"], "default": "SUPERVISING"},
+                    "available_attention_minutes": {"type": "integer", "default": 15},
+                    "max_concurrent_agents": {"type": "integer", "default": 4}
+                }
+            }
         }
     ]
 
@@ -306,7 +336,7 @@ def run_mcp_stdio_server(db_uri: Optional[str] = None):
                     "result": {
                         "protocolVersion": "2024-11-05",
                         "capabilities": {"tools": {}},
-                        "serverInfo": {"name": "codec-control-plane", "version": "0.4.0"}
+                        "serverInfo": {"name": "codec-control-plane", "version": "0.8.0"}
                     }
                 }
             elif method == "notifications/initialized":
@@ -330,6 +360,13 @@ def run_mcp_stdio_server(db_uri: Optional[str] = None):
                         thread_id=args.get("thread_id"),
                         target=args.get("target", "ANTIGRAVITY"),
                         budget=args.get("budget", "STANDARD")
+                    )
+                elif tool_name == "get_operating_system_status":
+                    out = server.get_os_status()
+                elif tool_name == "schedule_autonomous_batch":
+                    out = server.schedule_batch(
+                        operator_state=args.get("operator_state", "SUPERVISING"),
+                        available_attention_minutes=args.get("available_attention_minutes", 15)
                     )
                 elif tool_name == "report_progress":
                     out = server.report_progress(

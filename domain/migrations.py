@@ -44,6 +44,40 @@ def migration_v2_work_packets(conn: sqlite3.Connection):
     """)
     conn.commit()
 
+@register_migration(3, "Add epistemic_nodes and epistemic_edges tables for provenance graph")
+def migration_v3_epistemic_graph(conn: sqlite3.Connection):
+    cursor = conn.cursor()
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS epistemic_nodes (
+        id INTEGER PRIMARY KEY,
+        thread_id INTEGER NOT NULL,
+        node_type VARCHAR(50) NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        statement TEXT NOT NULL,
+        confidence FLOAT NOT NULL DEFAULT 1.0,
+        status VARCHAR(50) NOT NULL DEFAULT 'ACTIVE',
+        payload_json TEXT,
+        actor_id INTEGER,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(thread_id) REFERENCES threads(id) ON DELETE CASCADE,
+        FOREIGN KEY(actor_id) REFERENCES actors(id)
+    )
+    """)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS epistemic_edges (
+        id INTEGER PRIMARY KEY,
+        source_node_id INTEGER NOT NULL,
+        target_node_id INTEGER NOT NULL,
+        edge_type VARCHAR(50) NOT NULL,
+        weight FLOAT NOT NULL DEFAULT 1.0,
+        note TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(source_node_id) REFERENCES epistemic_nodes(id) ON DELETE CASCADE,
+        FOREIGN KEY(target_node_id) REFERENCES epistemic_nodes(id) ON DELETE CASCADE
+    )
+    """)
+    conn.commit()
+
 def run_migrations(db_path: str = None) -> int:
     """
     Applies all pending migrations safely to the SQLite database.

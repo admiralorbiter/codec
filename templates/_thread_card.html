@@ -12,6 +12,13 @@
     </div>
     
     <div class="card-badges">
+      {% set cog = thread.cognitive_cost %}
+      {% if cog %}
+      <span class="badge badge-cog {{ cog.css_class }}" title="{{ cog.explanation }}">
+        {{ cog.badge_icon }} {{ cog.badge_label }}
+      </span>
+      {% endif %}
+
       {% if thread.attention_fit %}
       <span class="badge badge-mode">{{ thread.attention_fit }}</span>
       {% endif %}

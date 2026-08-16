@@ -1,4 +1,4 @@
-﻿from enum import Enum
+from enum import Enum
 from typing import Optional, Dict, Any, List
 import re
 
@@ -125,11 +125,19 @@ def _compile_antigravity_profile(thread: Any, project_name: str, ws: dict, wp: A
         if rel_lines:
             lines.extend(["", "## 4. Cross-Thread Dependencies", *rel_lines])
 
+    # Horizon 7: Provenance & Verified Claims (Standard & Exhaustive)
+    if hasattr(thread, "epistemic_nodes") and thread.epistemic_nodes:
+        claims = [n for n in thread.epistemic_nodes if getattr(n, "node_type", "") == "CLAIM" and getattr(n, "status", "") == "ACTIVE"]
+        if claims:
+            lines.extend(["", "## 5. Provenance & Verified Claims"])
+            for c in claims[:4]:
+                lines.append(f"- **{c.title}**: {c.statement}")
+
     # Deep History / Episodes (Exhaustive only)
     if budget == TokenBudget.EXHAUSTIVE and hasattr(thread, "events"):
         recent_events = [e for e in thread.events[-8:]]
         if recent_events:
-            lines.extend(["", "## 5. Recent Activity Stream"])
+            lines.extend(["", "## 6. Recent Activity Stream"])
             for e in recent_events:
                 lines.append(f"- `[{e.event_type}]` {e.summary}")
 

@@ -83,6 +83,12 @@
     <div class="situation-strip-left">
       <div class="situation-state-badge">
         <span class="situation-state-tag">{{ thread.situation_summary.state_label }}</span>
+        {% set cog = thread.cognitive_cost %}
+        {% if cog %}
+        <span class="badge badge-cog {{ cog.css_class }}" style="font-size: 0.65rem;" title="{{ cog.explanation }}">
+          {{ cog.badge_icon }} {{ cog.badge_label }}
+        </span>
+        {% endif %}
         {% if thread.attention_fit %}
         <span class="situation-mode-tag">{{ thread.attention_fit }}</span>
         {% endif %}

@@ -3506,6 +3506,73 @@ body.solid-snake-hud-boost::before {
   gap: 0.5rem;
 }
 
+/* ==========================================================================
+   12. Horizon 5: Attention-Aware Execution & Cognitive Badges
+   ========================================================================== */
+.badge-cog {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  padding: 2px 6px;
+  border-radius: 3px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.badge-cog.cog-glance {
+  background: rgba(10, 189, 227, 0.15);
+  color: var(--cyan-agent);
+  border: 1px solid rgba(10, 189, 227, 0.35);
+}
+
+.badge-cog.cog-quick {
+  background: rgba(247, 183, 49, 0.15);
+  color: var(--amber-alert);
+  border: 1px solid rgba(247, 183, 49, 0.35);
+}
+
+.badge-cog.cog-deep {
+  background: rgba(165, 94, 234, 0.18);
+  color: #c48dfa;
+  border: 1px solid rgba(165, 94, 234, 0.4);
+}
+
+.badge-cog.cog-audio {
+  background: rgba(255, 107, 129, 0.15);
+  color: #ff7f94;
+  border: 1px solid rgba(255, 107, 129, 0.35);
+}
+
+.badge-cog.cog-waiting {
+  background: rgba(127, 153, 140, 0.15);
+  color: var(--slate-standby);
+  border: 1px solid rgba(127, 153, 140, 0.3);
+}
+
+.staging-buffer-container {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-tactical);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.staging-buffer-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  background: var(--bg-deep);
+  cursor: pointer;
+  user-select: none;
+  font-family: var(--font-mono);
+}
+
+.staging-buffer-summary::-webkit-details-marker {
+  display: none;
+}
+
 
 
 

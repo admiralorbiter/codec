@@ -103,6 +103,16 @@ def create_app(config_class=Config):
         seed_dogfood_database(engine)
         print("Clean dogfood database initialized with real active threads.")
 
+    @app.cli.command("check-conditions")
+    def cli_check_conditions():
+        from domain.reactivation_engine import check_all_waiting_conditions
+        db = db_session()
+        reactivated = check_all_waiting_conditions(db)
+        print(f"Evaluated waiting conditions. Reactivated {len(reactivated)} threads.")
+        for r in reactivated:
+            print(f" - #{r['thread_id']} '{r['thread_name']}': {r['reason']}")
+        db.close()
+
     # Ensure tables exist on boot
     Base.metadata.create_all(engine)
 
@@ -114,6 +124,7 @@ def create_app(config_class=Config):
     def cockpit():
         domain = request.args.get("domain", "All")
         mode = request.args.get("mode", "ALL")
+        attention_slice = request.args.get("slice", "ALL")
         project_id = request.args.get("project_id", type=int)
         search_query = request.args.get("q", "").strip()
 
@@ -124,9 +135,9 @@ def create_app(config_class=Config):
             attention_mode=mode,
             search_query=search_query
         )
-        queues = get_cockpit_queues(threads)
+        queues = get_cockpit_queues(threads, mode=mode, attention_slice=attention_slice)
         projects = get_all_projects(g.db)
-        total_living = sum(len(q) for q in queues.values())
+        total_living = sum(len(q) for k, q in queues.items() if isinstance(q, list))
 
         return render_template(
             "cockpit.html",
@@ -137,6 +148,7 @@ def create_app(config_class=Config):
             modes=ATTENTION_MODES,
             current_domain=domain,
             current_mode=mode.upper(),
+            current_slice=attention_slice.upper(),
             current_project_id=project_id,
             total_living=total_living
         )
@@ -145,6 +157,7 @@ def create_app(config_class=Config):
     def cockpit_queues_partial():
         domain = request.args.get("domain", "All")
         mode = request.args.get("mode", "ALL")
+        attention_slice = request.args.get("slice", "ALL")
         project_id = request.args.get("project_id", type=int)
         search_query = request.args.get("q", "").strip()
 
@@ -155,9 +168,14 @@ def create_app(config_class=Config):
             attention_mode=mode,
             search_query=search_query
         )
-        queues = get_cockpit_queues(threads)
+        queues = get_cockpit_queues(threads, mode=mode, attention_slice=attention_slice)
 
-        return render_template("_queues.html", queues=queues)
+        return render_template(
+            "_queues.html",
+            queues=queues,
+            current_mode=mode.upper(),
+            current_slice=attention_slice.upper()
+        )
 
     @app.route("/threads/<int:thread_id>/drawer")
     def thread_drawer(thread_id: int):
@@ -532,6 +550,126 @@ def create_app(config_class=Config):
             "status": "ok",
             **envelope
         })
+
+    # -------------------------------------------------------------
+    # Horizon 6: Conditional Reactivation & Prospective Memory
+    # -------------------------------------------------------------
+    @app.route("/threads/<int:thread_id>/reactivate/check", methods=["POST"])
+    def thread_reactivate_check(thread_id: int):
+        from domain.reactivation_engine import evaluate_thread_resume_condition, reactivate_thread
+        thread = get_thread_by_id(g.db, thread_id)
+        if not thread:
+            return jsonify({"error": "Thread not found"}), 404
+
+        is_satisfied, reason = evaluate_thread_resume_condition(thread)
+        if is_satisfied:
+            reactivated = reactivate_thread(g.db, thread_id, reason)
+            return jsonify({
+                "status": "ok",
+                "reactivated": True,
+                "reason": reason,
+                "new_state": reactivated.state if reactivated else "NEEDS_YOU"
+            })
+        return jsonify({
+            "status": "ok",
+            "reactivated": False,
+            "reason": reason,
+            "condition": thread.resume_condition
+        })
+
+    @app.route("/cockpit/reactivate/check-all", methods=["POST"])
+    def cockpit_check_all_conditions():
+        from domain.reactivation_engine import check_all_waiting_conditions
+        reactivated = check_all_waiting_conditions(g.db)
+        return jsonify({
+            "status": "ok",
+            "count": len(reactivated),
+            "reactivated": reactivated
+        })
+
+    @app.route("/threads/<int:thread_id>/condition", methods=["POST"])
+    def thread_set_condition(thread_id: int):
+        thread = get_thread_by_id(g.db, thread_id)
+        if not thread:
+            return jsonify({"error": "Thread not found"}), 404
+
+        condition = request.form.get("resume_condition") or (request.json.get("resume_condition") if request.is_json else None)
+        if condition is not None:
+            thread.resume_condition = condition.strip()
+            g.db.commit()
+
+        if request.is_json:
+            return jsonify({"status": "ok", "thread_id": thread_id, "resume_condition": thread.resume_condition})
+        return redirect(url_for("thread_workspace_view", thread_id=thread_id))
+
+    # -------------------------------------------------------------
+    # Horizon 7: Provenance & Epistemic Graph Routes
+    # -------------------------------------------------------------
+    @app.route("/threads/<int:thread_id>/epistemic/nodes", methods=["POST"])
+    def thread_add_epistemic_node(thread_id: int):
+        from domain.epistemic_graph import record_epistemic_node
+        thread = get_thread_by_id(g.db, thread_id)
+        if not thread:
+            return jsonify({"error": "Thread not found"}), 404
+
+        data = request.get_json() if request.is_json else request.form
+        node = record_epistemic_node(
+            session=g.db,
+            thread_id=thread_id,
+            node_type=data.get("node_type", "CLAIM"),
+            title=data.get("title", ""),
+            statement=data.get("statement", ""),
+            confidence=float(data.get("confidence", 1.0)),
+            status=data.get("status", "ACTIVE"),
+            payload=data.get("payload"),
+            actor_id=data.get("actor_id")
+        )
+        return jsonify({"status": "ok", "node": node.to_dict()})
+
+    @app.route("/threads/<int:thread_id>/epistemic/links", methods=["POST"])
+    def thread_link_epistemic_nodes(thread_id: int):
+        from domain.epistemic_graph import link_epistemic_nodes
+        data = request.get_json() if request.is_json else request.form
+        edge = link_epistemic_nodes(
+            session=g.db,
+            source_node_id=int(data.get("source_node_id")),
+            target_node_id=int(data.get("target_node_id")),
+            edge_type=data.get("edge_type", "SUPPORTS"),
+            weight=float(data.get("weight", 1.0)),
+            note=data.get("note")
+        )
+        return jsonify({"status": "ok", "edge": edge.to_dict()})
+
+    @app.route("/threads/<int:thread_id>/epistemic/lineage", methods=["GET"])
+    def thread_get_epistemic_lineage(thread_id: int):
+        from domain.epistemic_graph import get_thread_epistemic_graph, format_epistemic_summary_markdown
+        thread = get_thread_by_id(g.db, thread_id)
+        if not thread:
+            return jsonify({"error": "Thread not found"}), 404
+        graph = get_thread_epistemic_graph(g.db, thread_id)
+        summary_md = format_epistemic_summary_markdown(g.db, thread_id)
+        return jsonify({"status": "ok", "graph": graph, "summary_markdown": summary_md})
+
+    # -------------------------------------------------------------
+    # Horizon 8: Personal Operating System for Work Routes
+    # -------------------------------------------------------------
+    @app.route("/api/os/status", methods=["GET"])
+    def api_os_status():
+        from domain.personal_os_scheduler import calculate_system_throughput_telemetry
+        telemetry = calculate_system_throughput_telemetry(g.db)
+        return jsonify({"status": "ok", "telemetry": telemetry})
+
+    @app.route("/api/os/schedule-batch", methods=["POST"])
+    def api_os_schedule_batch():
+        from domain.personal_os_scheduler import schedule_autonomous_batch
+        data = request.get_json() if request.is_json else request.form
+        schedule = schedule_autonomous_batch(
+            session=g.db,
+            operator_state=data.get("operator_state", "SUPERVISING"),
+            available_attention_minutes=int(data.get("available_attention_minutes", 15)),
+            max_concurrent_agents=int(data.get("max_concurrent_agents", 4))
+        )
+        return jsonify({"status": "ok", "schedule": schedule})
 
     @app.route("/threads/<int:thread_id>/decision-gate", methods=["POST"])
     def thread_create_decision_gate(thread_id: int):

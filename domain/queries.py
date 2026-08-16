@@ -39,34 +39,8 @@ def get_living_threads(
     if project_id:
         query = query.filter(Thread.project_id == project_id)
 
-    if attention_mode and attention_mode.upper() != "ALL":
-        mode = attention_mode.upper()
-        if mode == "FOCUS":
-            query = query.filter(
-                or_(
-                    Thread.is_current_focus == True,
-                    Thread.attention_fit == "FOCUS",
-                    Thread.attention_fit == "DEEP"
-                )
-            )
-        elif mode == "INTERACTIVE":
-            query = query.filter(
-                or_(
-                    Thread.attention_fit == "BUILD",
-                    Thread.attention_fit == "INTERACTIVE",
-                    Thread.state == "ACTIVE"
-                )
-            )
-        elif mode == "SUPERVISE":
-            query = query.filter(
-                or_(
-                    Thread.state == "RUNNING",
-                    Thread.state == "NEEDS_YOU",
-                    Thread.attention_fit == "SUPERVISE"
-                )
-            )
-        elif mode == "CONSUME":
-            query = query.filter(Thread.attention_fit == "CONSUME")
+    if attention_mode and attention_mode.upper() == "CONSUME":
+        query = query.filter(Thread.attention_fit == "CONSUME")
 
 
     if search_query and search_query.strip():
@@ -85,15 +59,20 @@ def get_living_threads(
     return query.order_by(Thread.last_active_at.desc(), Thread.updated_at.desc()).all()
 
 
-def get_cockpit_queues(threads: List[Thread]) -> Dict[str, List[Thread]]:
-    """Partition threads into cockpit attention queues."""
+def get_cockpit_queues(threads: List[Thread], mode: str = "ALL", attention_slice: Optional[str] = None) -> Dict[str, Any]:
+    """Partition threads into cockpit attention queues with cognitive staging buffers."""
+    from domain.attention_scheduler import filter_and_rank_by_attention
+    
+    sliced = filter_and_rank_by_attention(threads, mode=mode, attention_slice=attention_slice)
+    active_threads = sliced["active_threads"]
+
     queues = {
         "NEEDS_YOU": [],
         "RUNNING": [],
         "READY": [],
         "WAITING": [],
     }
-    for t in threads:
+    for t in active_threads:
         q = t.queue
         if q in queues:
             queues[q].append(t)
@@ -101,6 +80,9 @@ def get_cockpit_queues(threads: List[Thread]) -> Dict[str, List[Thread]]:
             queues["READY"].append(t)
         else:
             queues["READY"].append(t)
+
+    queues["staged_deep_work"] = sliced.get("staged_deep_work", [])
+    queues["staged_count"] = sliced.get("staged_count", 0)
     return queues
 
 
@@ -254,7 +236,10 @@ def generate_smart_commit_message(thread: Thread) -> str:
     summary_parts = []
 
     # Detect dominant feature / subsystem from files
-    if "context_router" in changed_str or "router" in changed_str:
+    if "attention_scheduler" in changed_str or "horizon5" in changed_str or "attention" in changed_str:
+        scope = "attention"
+        summary_parts.append("implement Horizon 5 attention-aware execution & cognitive scheduler")
+    elif "context_router" in changed_str or "router" in changed_str:
         scope = "router"
         summary_parts.append("implement provider-neutral context router & target prompt compilers")
     elif "work_packet" in changed_str:
@@ -301,6 +286,14 @@ def generate_smart_commit_message(thread: Thread) -> str:
             desc = "automated unit and integration test suite"
         elif "context_router.py" in fname:
             desc = "target prompt profiles (Antigravity, ChatGPT, Claude, Local Agent, Audio)"
+        elif "attention_scheduler.py" in fname:
+            desc = "Horizon 5 cognitive load & attention scheduler"
+        elif "reactivation_engine.py" in fname:
+            desc = "Horizon 6 conditional reactivation & prospective memory"
+        elif "epistemic_graph.py" in fname:
+            desc = "Horizon 7 provenance & epistemic graph engine"
+        elif "personal_os_scheduler.py" in fname:
+            desc = "Horizon 8 personal OS scheduler & throughput telemetry"
         elif "_context_router_modal.html" in fname:
             desc = "interactive Context Router modal with live preview & token budget"
         elif "seed_dogfood.py" in fname:
@@ -311,6 +304,8 @@ def generate_smart_commit_message(thread: Thread) -> str:
             desc = "database models and telemetry properties"
         elif "transitions.py" in fname:
             desc = "lifecycle state transitions and event dispatch"
+        elif "migrations.py" in fname:
+            desc = "database schema version migrations"
         elif "app.py" in fname:
             desc = "HTTP endpoints and context router routes"
         elif "codec.css" in fname:
