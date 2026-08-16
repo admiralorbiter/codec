@@ -73,6 +73,22 @@
       </div>
     </div>
 
+    <!-- Cognitive Mode Recognition Strip -->
+    {% if current_mode and current_mode != 'ALL' %}
+    <div class="mode-explanation-strip">
+      <span class="mode-badge-tag">{{ current_mode }}:</span>
+      {% if current_mode == 'FOCUS' %}
+      <span>Single-threaded deep problem solving &amp; architectural reasoning. Decision gates prioritized.</span>
+      {% elif current_mode == 'INTERACTIVE' %}
+      <span>Rapid human-in-the-loop development &amp; test execution cycles.</span>
+      {% elif current_mode == 'SUPERVISE' %}
+      <span>Displaying autonomous compute runs, background agents, and quick review gates needing light oversight.</span>
+      {% elif current_mode == 'CONSUME' %}
+      <span>Synthesized audio, reading briefs, and completed research ready for reflection.</span>
+      {% endif %}
+    </div>
+    {% endif %}
+
     <!-- Attention Queues Container (Rendered / Swapped by HTMX) -->
     {% include '_queues.html' %}
   </section>

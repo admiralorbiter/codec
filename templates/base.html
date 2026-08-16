@@ -23,24 +23,43 @@
         <span class="freq">140.85</span>
       </a>
       
-      <!-- Primary View Switcher -->
+      <!-- Primary View Switcher (Dual-Vocabulary) -->
       <nav class="codec-nav-pills">
         <a href="{{ url_for('parallel_cockpit') }}" 
-           class="nav-pill {% if active_view == 'parallel' %}active{% endif %}">⚡ PARALLEL COMMS</a>
+           class="nav-pill {% if active_view == 'parallel' %}active{% endif %}"
+           title="Multi-channel parallel overview for concurrent human/agent/compute lines of work">
+          <span class="nav-pill-title">⚡ PARALLEL COMMS</span>
+          <span class="nav-pill-sub">Concurrent Work</span>
+        </a>
         <a href="{{ url_for('cockpit', domain=current_domain, mode=current_mode) }}" 
-           class="nav-pill {% if active_view == 'now' %}active{% endif %}">RADAR</a>
+           class="nav-pill {% if active_view == 'now' %}active{% endif %}"
+           title="Immediate operational queues filtered by human attention state">
+          <span class="nav-pill-title">📡 RADAR</span>
+          <span class="nav-pill-sub">Now / Attention</span>
+        </a>
         <a href="{{ url_for('mission_control', domain=current_domain) }}" 
-           class="nav-pill {% if active_view == 'mission_control' %}active{% endif %}">MISSION CONTROL</a>
+           class="nav-pill {% if active_view == 'mission_control' %}active{% endif %}"
+           title="Comprehensive matrix of all living threads across all domains">
+          <span class="nav-pill-title">🎛️ MISSION CONTROL</span>
+          <span class="nav-pill-sub">All Living Threads</span>
+        </a>
       </nav>
     </div>
 
-
-    <!-- Attention Mode Selector -->
+    <!-- Attention Mode Selector with Recognition Tooltips -->
     <div class="mode-selector">
       <span class="mode-label">Mode:</span>
+      {% set mode_tooltips = {
+        'ALL': 'Unfiltered view: display all living work without cognitive filtering',
+        'FOCUS': 'Single-threaded deep cognitive problem solving and architecture decisions',
+        'INTERACTIVE': 'Rapid human-in-the-loop development, debugging, and testing cycles',
+        'SUPERVISE': 'Intermittent oversight: monitor active compute runs, agents, and quick review gates',
+        'CONSUME': 'Passive consumption: synthesized audio, reading briefs, and completed research'
+      } %}
       {% for m in ['ALL', 'FOCUS', 'INTERACTIVE', 'SUPERVISE', 'CONSUME'] %}
       <a href="{{ url_for('cockpit', domain=current_domain, mode=m, project_id=current_project_id) }}"
          class="mode-btn {% if current_mode == m %}active{% endif %}"
+         title="{{ mode_tooltips.get(m, m) }}"
          hx-get="{{ url_for('cockpit_queues_partial', domain=current_domain, mode=m, project_id=current_project_id) }}"
          hx-target="#queues-container"
          hx-push-url="{{ url_for('cockpit', domain=current_domain, mode=m, project_id=current_project_id) }}">

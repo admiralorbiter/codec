@@ -181,6 +181,54 @@ class Thread(Base):
         except Exception:
             return {}
 
+    @property
+    def situation_summary(self) -> Dict[str, Any]:
+        """NASA Cockpit Situation Strip Model:
+        Answers: Where it is -> Who has it -> Why it stopped/state -> What you need to do next -> Supporting evidence.
+        """
+        ws = self.get_working_set()
+        wp = self.active_work_packet
+        actor_name = self.current_actor.name if self.current_actor else "Me"
+        
+        state_label = self.queue
+        if self.queue == "NEEDS_YOU":
+            state_label = "NEEDS YOU · Human Judgment"
+        elif self.queue == "RUNNING":
+            state_label = f"RUNNING · {actor_name} Executing"
+        elif self.queue == "WAITING":
+            state_label = "WAITING · External Condition"
+        elif self.queue == "READY":
+            state_label = "READY · Work Prepared"
+        elif self.state == "PARKED":
+            state_label = "PARKED · Inactive"
+
+        # Evidence / Support Telemetry
+        support_parts = []
+        if ws.get("tests_status"):
+            support_parts.append(f"{ws.get('tests_status')}")
+        if ws.get("files_changed_count"):
+            support_parts.append(f"{ws.get('files_changed_count')} files changed")
+        if ws.get("expected_duration") and self.queue == "RUNNING":
+            support_parts.append(f"est. {ws.get('expected_duration')}")
+        if self.resume_condition and self.queue == "WAITING":
+            support_parts.append(f"Blocked by: {self.resume_condition}")
+        if wp and wp.stop_conditions:
+            support_parts.append(f"Guardrail: {wp.stop_conditions}")
+
+        support_text = " · ".join(support_parts) if support_parts else "Working set nominal"
+
+        return {
+            "state_label": state_label,
+            "queue": self.queue,
+            "headline": self.frontier or "Frontier not articulated.",
+            "next_move": self.next_action or "Review active context and specify next move.",
+            "actor": actor_name,
+            "attention_fit": self.attention_fit or "FOCUS",
+            "support": support_text,
+            "is_current_focus": self.is_current_focus,
+            "last_active": self.relative_last_active
+        }
+
     def compile_briefing(self) -> Dict[str, Any]:
         """Deterministic re-entry capsule compiler."""
         recent_events = list(reversed(self.events))[:5] if self.events else []

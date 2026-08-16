@@ -4,6 +4,15 @@
 
   {% for event in thread.events %}
   {% set payload = event.get_payload() %}
+  {% if event.event_type in ('GIT_DIFF', 'GIT_COMMIT') and not payload.get('conflict') %}
+  <div class="channel-braid-event event-type-git-compact" style="padding-left: 20px; margin-bottom: 0.35rem;">
+    <div class="channel-braid-node" style="width: 12px; height: 12px; font-size: 8px; left: -6px; top: 4px;">🌿</div>
+    <div style="display: flex; align-items: center; justify-content: space-between; font-family: var(--font-mono); font-size: 0.68rem; color: var(--text-muted); background: var(--bg-deep); border: 1px solid var(--border-subtle); padding: 2px 6px; border-radius: 2px;">
+      <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px;">{{ event.summary }}</span>
+      <span style="color: var(--text-dim); font-size: 0.62rem;">{{ event.relative_time }}</span>
+    </div>
+  </div>
+  {% else %}
   <div class="channel-braid-event event-type-{{ event.event_type|lower }}">
     
     <!-- Timeline Node -->
@@ -11,7 +20,6 @@
       {% if event.event_type == 'VOICE_NOTE' %}🎙
       {% elif event.event_type == 'PLAN' %}📋
       {% elif event.event_type in ('AGENT_CHECKPOINT', 'AGENT_RESULT') %}🤖
-      {% elif event.event_type in ('GIT_DIFF', 'GIT_COMMIT') %}🌿
       {% elif event.event_type == 'TEST_RESULT' %}🧪
       {% elif event.event_type == 'DECISION_REQUIRED' %}⚡
       {% elif event.event_type == 'DECISION' %}✓
@@ -121,6 +129,7 @@
 
     </div>
   </div>
+  {% endif %}
   {% endfor %}
 
   <!-- Live Frontier in Braid -->

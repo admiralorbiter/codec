@@ -127,8 +127,8 @@ def test_git_commit_fail_closed_on_invalid_repo():
     assert "No verified Git repository attached" in res["error"]
 
 def test_git_commit_http_route_rejects_missing_repo(client):
-    # Thread 2 in seed database has no verified git repository
-    resp = client.post("/threads/2/git-commit", data={"commit_message": "test"}, follow_redirects=False)
+    # Thread 3 in seed database has no verified git repository
+    resp = client.post("/threads/3/git-commit", data={"commit_message": "test"}, follow_redirects=False)
     assert resp.status_code == 400
     assert "No verified Git repository attached" in resp.data.decode("utf-8")
 

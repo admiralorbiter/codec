@@ -5,46 +5,44 @@
 {% block content %}
 <main class="thread-workspace-layout">
 
-  <!-- Workspace Top Toolbar -->
+  <!-- Workspace Top Toolbar (Triaged by NASA Functional Grouping) -->
   <div class="workspace-top-bar">
+    <!-- Left: Navigation & Breadcrumb -->
     <div class="workspace-nav-left">
-      <a href="{{ url_for('cockpit') }}" class="btn-back-link">
-        &larr; MISSION CONTROL
+      <a href="{{ url_for('cockpit') }}" class="btn-back-link" title="Return to Cockpit Radar">
+        &larr; RADAR
       </a>
       <span class="nav-divider">//</span>
       <span class="workspace-breadcrumb">{{ thread.project.name if thread.project else 'General' }}</span>
       <span class="nav-divider">/</span>
       <span class="workspace-current-title">{{ thread.name }}</span>
+      <span class="live-status-indicator" title="Live SSE Event Stream Connected">
+        <span class="pulse-dot"></span> LIVE
+      </span>
     </div>
 
-    <div class="workspace-nav-right">
-      <span id="live-stream-badge" class="badge" style="color: var(--codec-green); border: 1px solid rgba(68, 189, 50, 0.4); font-size: 0.68rem;">
-        🟢 LIVE STREAMING
-      </span>
-
-      <button class="btn-action" onclick="openWorkPacketModal()" style="color: var(--codec-green); border-color: rgba(68, 189, 50, 0.5);" title="Prepare structured delegation packet with stop conditions">
+    <!-- Center: Thread Tools -->
+    <div class="workspace-tools-center">
+      <button class="btn-tool" onclick="openWorkPacketModal()" title="Prepare structured delegation packet with stop conditions">
         📦 + Work Packet
       </button>
-
-      <button class="btn-action" onclick="openGitCommitModal('{{ thread.id }}')" style="color: var(--amber-alert); border-color: var(--amber-alert);" title="Stage, commit, and snapshot current working tree">
-        🌿 Git Commit
-      </button>
-
-      <button class="btn-action" onclick="copyContextPacket('{{ thread.id }}')" style="color: var(--codec-green); border-color: var(--codec-green);" title="Copy token-efficient markdown context packet to paste into ChatGPT, Claude, or Agent">
-        📋 Copy Context Packet
-      </button>
-
-      <button class="btn-action" onclick="openDecisionGateModal()" style="color: var(--amber-alert); border-color: rgba(235, 179, 58, 0.4);" title="Create an interactive decision fork at the frontier">
+      <button class="btn-tool" onclick="openDecisionGateModal()" title="Create an interactive decision fork at the frontier">
         ⚡ + Decision Gate
       </button>
+      <button class="btn-tool" onclick="copyContextPacket('{{ thread.id }}')" title="Copy token-efficient markdown context packet to paste into ChatGPT, Claude, or Agent">
+        📋 Copy Context
+      </button>
+    </div>
 
+    <!-- Right: Primary Operational Actions -->
+    <div class="workspace-nav-right">
       {% if thread.is_current_focus %}
-      <span class="badge-current-focus-active">
+      <span class="badge-current-focus-active" title="Active Cognitive Focus">
         <span class="pulse-dot"></span> CURRENT FOCUS
       </span>
       {% else %}
       <form method="POST" action="{{ url_for('thread_set_focus', thread_id=thread.id) }}" style="display: inline;">
-        <button type="submit" class="btn-action btn-set-focus">
+        <button type="submit" class="btn-action btn-set-focus" title="Promote thread to active cognitive focus">
           ⚡ SET AS CURRENT FOCUS
         </button>
       </form>
@@ -52,7 +50,7 @@
 
       {% if thread.queue == 'NEEDS_YOU' %}
       <form method="POST" action="{{ url_for('thread_accept_action', thread_id=thread.id) }}" style="display: inline;">
-        <button type="submit" class="btn-action btn-primary" style="background: var(--codec-green); border-color: var(--codec-green);">
+        <button type="submit" class="btn-action btn-primary" style="background: var(--codec-green); border-color: var(--codec-green); color: #000; font-weight: 800;">
           ✓ ACCEPT RESULT
         </button>
       </form>
@@ -65,7 +63,7 @@
         </button>
       </form>
       {% else %}
-      <button class="btn-action btn-warning" onclick="openParkModal('{{ thread.id }}')">
+      <button class="btn-action btn-warning" onclick="openParkModal('{{ thread.id }}')" title="Park thread with audio-friendly re-entry capsule">
         ⏹ PARK THREAD
       </button>
       {% endif %}
@@ -73,10 +71,61 @@
       <form method="POST" action="{{ url_for('thread_close_action', thread_id=thread.id) }}" 
             onsubmit="return confirm('Mark thread \'{{ thread.name }}\' as complete and archive from active radar?');"
             style="display: inline;">
-        <button type="submit" class="btn-action" style="color: var(--text-dim);" title="Complete &amp; Archive Thread">
+        <button type="submit" class="btn-action btn-subtle" title="Complete &amp; Archive Thread">
           ✓ DONE
         </button>
       </form>
+    </div>
+  </div>
+
+  <!-- Persistent Sticky Situation Strip (NASA Level 1-3 Salience) -->
+  <div class="thread-situation-strip queue-{{ thread.queue|lower }}">
+    <div class="situation-strip-left">
+      <div class="situation-state-badge">
+        <span class="situation-state-tag">{{ thread.situation_summary.state_label }}</span>
+        {% if thread.attention_fit %}
+        <span class="situation-mode-tag">{{ thread.attention_fit }}</span>
+        {% endif %}
+      </div>
+      <div class="situation-narrative">
+        <div class="situation-frontier" title="{{ thread.frontier }}">
+          {{ thread.frontier }}
+        </div>
+        <div class="situation-next-line">
+          <span class="situation-next-label">&gt; Next:</span>
+          <span class="situation-next-text">{{ thread.next_action or 'Determine next tactical move' }}</span>
+          <span class="situation-telemetry-pill">{{ thread.situation_summary.support }}</span>
+        </div>
+      </div>
+    </div>
+    <div class="situation-strip-right">
+      <div class="situation-actor-info">
+        <span class="actor-title">Ball:</span>
+        <span class="actor-name">{{ thread.current_actor.name if thread.current_actor else 'Me' }}</span>
+      </div>
+      <div class="situation-quick-cta">
+        {% if thread.queue == 'NEEDS_YOU' %}
+        <a href="#decision-gate-section" class="btn-situation-cta btn-cta-amber">
+          ⚡ Decide Now
+        </a>
+        {% elif thread.queue == 'READY' and thread.active_work_packet %}
+        <form method="POST" action="{{ url_for('work_packet_dispatch', packet_id=thread.active_work_packet.id) }}" style="margin:0;">
+          <button type="submit" class="btn-situation-cta btn-cta-green">
+            🚀 Launch Dispatch
+          </button>
+        </form>
+        {% elif thread.queue == 'RUNNING' %}
+        <span class="situation-running-pulse">
+          <span class="pulse-dot"></span> Executing
+        </span>
+        {% elif thread.queue == 'WAITING' %}
+        <form method="POST" action="{{ url_for('thread_resume_action', thread_id=thread.id) }}" style="margin:0;">
+          <button type="submit" class="btn-situation-cta btn-cta-slate">
+            ✓ Condition Met
+          </button>
+        </form>
+        {% endif %}
+      </div>
     </div>
   </div>
 
@@ -86,7 +135,7 @@
     <!-- Left Column: Narrative Braid -->
     <div class="workspace-narrative-col">
       
-      <!-- Thread Header Banner -->
+      <!-- Thread Header Banner & Compact Working Set -->
       <div class="thread-banner-card">
         <div class="banner-top-row">
           <div class="banner-tags">
@@ -127,7 +176,7 @@
         </div>
         {% endif %}
 
-        <!-- Working Set Constellation -->
+        <!-- Working Set Constellation (Compact Telemetry Strip) -->
         {% include '_working_set.html' %}
       </div>
 
@@ -153,7 +202,7 @@
             </form>
             {% elif wp.status == 'DELIVERED' %}
             <form method="POST" action="{{ url_for('work_packet_adopt', packet_id=wp.id) }}" style="margin: 0;">
-              <button type="submit" class="btn-action btn-primary" style="font-size: 0.7rem; padding: 3px 8px; background: var(--codec-green); border-color: var(--codec-green);">
+              <button type="submit" class="btn-action btn-primary" style="font-size: 0.7rem; padding: 3px 8px; background: var(--codec-green); border-color: var(--codec-green); color: #000; font-weight: bold;">
                 ✓ Accept &amp; Adopt
               </button>
             </form>
@@ -196,10 +245,10 @@
 
     </div>
 
-    <!-- Right Column: Briefing Capsule, Surfaces & Quick Capture -->
+    <!-- Right Column: Re-entry Capsule, Details on Demand & Quick Capture -->
     <div class="workspace-sidebar-col">
       
-      <!-- Quick Re-entry Briefing Capsule -->
+      <!-- Quick Re-entry Briefing Capsule (Parnin & Rugaber Cues) -->
       {% set briefing = thread.compile_briefing() %}
       <div class="sidebar-box">
         <div class="sidebar-box-title">RE-ENTRY BRIEFING CAPSULE</div>
@@ -219,7 +268,7 @@
         </div>
       </div>
 
-      <!-- Surfaces Pointers -->
+      <!-- Surfaces & Pointers (Details on Demand) -->
       <div class="sidebar-box">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
           <div class="sidebar-box-title" style="margin-bottom: 0;">SURFACES &amp; POINTERS ({{ thread.surfaces|length }})</div>
@@ -227,7 +276,7 @@
             + Link Surface
           </button>
         </div>
-        <div class="surfaces-list" style="display: flex; flex-direction: column; gap: 0.5rem;">
+        <div class="surfaces-list" style="display: flex; flex-direction: column; gap: 0.4rem;">
           {% for s in thread.surfaces %}
           <div style="display: flex; align-items: center; gap: 4px; width: 100%;">
             <a href="{{ s.uri or '#' }}" target="_blank" class="surface-badge" style="flex: 1;">
@@ -246,7 +295,8 @@
         </div>
       </div>
 
-      <!-- Cross-Thread Relations Section -->
+      <!-- Cross-Thread Relations Section (De-duplicated & Compact when 0) -->
+      {% if relations|length > 0 %}
       <div class="sidebar-box">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
           <div class="sidebar-box-title" style="margin-bottom: 0;">CROSS-THREAD RELATIONS ({{ relations|length }})</div>
@@ -254,7 +304,7 @@
             + Link Relation
           </button>
         </div>
-        <div class="surfaces-list" style="display: flex; flex-direction: column; gap: 0.5rem;">
+        <div class="surfaces-list" style="display: flex; flex-direction: column; gap: 0.4rem;">
           {% for r in relations %}
           <div style="display: flex; align-items: center; gap: 4px; width: 100%;">
             <a href="{{ url_for('thread_workspace_view', thread_id=r.other_thread_id) }}" class="surface-badge" style="flex: 1;" title="{{ r.note or '' }}">
@@ -267,11 +317,15 @@
               <button type="submit" class="btn-pane-icon" style="color: var(--text-dim); border: none; background: transparent; font-size: 0.75rem;" title="Remove Relation Edge">✕</button>
             </form>
           </div>
-          {% else %}
-          <div class="queue-empty-msg">No semantic relations linked.</div>
           {% endfor %}
         </div>
       </div>
+      {% else %}
+      <div class="sidebar-box-empty-bar">
+        <span class="empty-bar-label">Relations (0)</span>
+        <button class="btn-empty-bar-action" onclick="openRelationModal()">+ Link</button>
+      </div>
+      {% endif %}
 
       <!-- Quick Dictate Note Form -->
       <div class="sidebar-box">

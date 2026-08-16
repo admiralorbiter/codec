@@ -11,7 +11,7 @@
 
       <div class="channel-header-actions">
         {% if thread.queue == 'NEEDS_YOU' %}
-        <span class="badge badge-state-needs-you">DECISION</span>
+        <span class="badge badge-state-needs-you">DECISION GATE</span>
         {% elif thread.queue == 'RUNNING' %}
         <span class="badge badge-state-running">RUNNING</span>
         {% elif thread.queue == 'READY' %}
@@ -24,7 +24,7 @@
 
         <a href="{{ url_for('thread_workspace_view', thread_id=thread.id) }}" 
            class="btn-pane-icon" 
-           title="Open Full-Screen Dedicated Workspace">
+           title="Open Dedicated Full-Screen Workspace">
           ↗
         </a>
       </div>
@@ -42,21 +42,19 @@
       </select>
     </div>
 
-    <!-- Compact Working Set Strip -->
-    {% set ws = thread.get_working_set() %}
-    <div class="channel-ws-strip">
-      {% if ws.get('repo') %}
-      <span class="ws-mini-chip">📦 {{ ws.get('repo') }}</span>
-      {% endif %}
-      {% if ws.get('branch') %}
-      <span class="ws-mini-chip">🌿 {{ ws.get('branch') }}</span>
-      {% endif %}
-      {% if ws.get('tests_status') %}
-      <span class="ws-mini-chip" style="color: var(--codec-green);">🧪 {{ ws.get('tests_status') }}</span>
-      {% endif %}
-      {% if thread.current_actor %}
-      <span class="ws-mini-chip">👤 {{ thread.current_actor.name }}</span>
-      {% endif %}
+    <!-- Sticky Semantic Status Header (Carries Channel Cognition) -->
+    <div class="channel-sticky-status status-{{ thread.queue|lower }}">
+      <div class="status-summary-text" title="{{ thread.frontier }}">
+        {{ thread.frontier }}
+      </div>
+      <div class="status-next-action">
+        <span class="next-arrow">&gt; Next:</span>
+        <span class="next-body">{{ thread.next_action or 'Review active state' }}</span>
+      </div>
+      <div class="status-footer-row">
+        <span class="status-actor-tag">Ball: <strong>{{ thread.current_actor.name if thread.current_actor else 'Me' }}</strong></span>
+        <span class="status-support-tag">{{ thread.situation_summary.support }}</span>
+      </div>
     </div>
   </div>
 

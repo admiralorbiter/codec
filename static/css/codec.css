@@ -1,6 +1,8 @@
-/* Codec — Tactical Mission Control System (Metal Gear Inspired) */
+/* Codec — Tactical Mission Control System (Metal Gear Inspired)
+   Strict Color Semantics & Operational Hierarchy Contract (NASA-STD-3001 & WCAG 2.2) */
 
 :root {
+  /* Surface Backdrops */
   --bg-deep: #060a08;
   --bg-surface: #0b120e;
   --bg-card: #0f1914;
@@ -8,10 +10,19 @@
   --bg-panel: #0d1611;
   --bg-input: #080e0a;
   
+  /* Borders */
   --border-subtle: #182820;
   --border-dim: #233a2e;
   --border-bright: #2efc8d;
   
+  /* Strict Semantic Color Contract:
+     - Green: Nominal / Accepted / Focused / Ready
+     - Amber: Human Attention / Decision Required / Caution
+     - Cyan: Machine / Process Running Autonomously
+     - Slate/Neutral: Waiting / Inactive / Parked / Standby
+     - Red: Failure / Destructive Only
+     - Purple: Metadata / Category / Domain (Never Urgency)
+  */
   --codec-green: #2efc8d;
   --codec-green-dim: #1f9e59;
   --codec-green-glow: rgba(46, 252, 141, 0.15);
@@ -24,17 +35,22 @@
   
   --purple-deep: #a55eea;
   --purple-glow: rgba(165, 94, 234, 0.2);
+
+  --red-danger: #ff4757;
+  --red-glow: rgba(255, 71, 87, 0.2);
   
-  --sage-wait: #7f998c;
-  --text-primary: #e6f3ec;
-  --text-muted: #8ea89a;
-  --text-dim: #546b5f;
+  --slate-wait: #7f998c;
+  
+  /* 3-Tier Typography (WCAG 2.2 Compliant Contrast >= 4.5:1) */
+  --text-primary: #f0f7f3;  /* Tier 1: High-Salience State & Primary Actions */
+  --text-muted: #a6c0b3;    /* Tier 2: Operational Prose & Frontiers */
+  --text-dim: #708c7e;      /* Tier 3: Small Metadata & Telemetry */
   
   --font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', 'Courier New', monospace;
   --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   
   --header-height: 54px;
-  --drawer-width: 440px;
+  --drawer-width: 420px;
 }
 
 * {
@@ -2531,6 +2547,827 @@ body.solid-snake-hud-boost::before {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* ==========================================================================
+   UI OVERHAUL: OPERATIONAL HIERARCHY & NASA COCKPIT STYLES
+   ========================================================================== */
+
+/* 1. Dual-Vocabulary Navigation & Mode Tooltips */
+.codec-nav-pills {
+  display: flex;
+  background: var(--bg-deep);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.nav-pill {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  font-family: var(--font-mono);
+  padding: 4px 10px;
+  color: var(--text-muted);
+  text-decoration: none;
+  border-radius: 3px;
+  transition: all 0.15s ease;
+  line-height: 1.15;
+}
+
+.nav-pill-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.nav-pill-sub {
+  font-size: 0.58rem;
+  font-weight: 500;
+  color: var(--text-dim);
+  letter-spacing: 0.2px;
+}
+
+.nav-pill:hover {
+  color: var(--text-primary);
+  background: var(--border-subtle);
+}
+
+.nav-pill:hover .nav-pill-sub {
+  color: var(--text-muted);
+}
+
+.nav-pill.active {
+  background: var(--codec-green-dim);
+  color: #000;
+}
+
+.nav-pill.active .nav-pill-title {
+  color: #000;
+  font-weight: 800;
+}
+
+.nav-pill.active .nav-pill-sub {
+  color: #09341f;
+  font-weight: 700;
+}
+
+/* Attention Mode Tooltips & Recognition Bar */
+.mode-btn {
+  position: relative;
+}
+
+.mode-explanation-strip {
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 4px 1.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mode-explanation-strip .mode-badge-tag {
+  color: var(--codec-green);
+  font-weight: 700;
+}
+
+/* 2. Persistent Thread Situation Strip */
+.thread-situation-strip {
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-dim);
+  padding: 0.75rem 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1.25rem;
+  position: sticky;
+  top: calc(var(--header-height) + 49px);
+  z-index: 45;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(8px);
+}
+
+.thread-situation-strip.queue-needs_you {
+  border-left: 4px solid var(--amber-alert);
+  background: linear-gradient(90deg, rgba(247, 183, 49, 0.08) 0%, var(--bg-surface) 30%);
+}
+
+.thread-situation-strip.queue-running {
+  border-left: 4px solid var(--cyan-run);
+  background: linear-gradient(90deg, rgba(10, 189, 227, 0.08) 0%, var(--bg-surface) 30%);
+}
+
+.thread-situation-strip.queue-ready {
+  border-left: 4px solid var(--codec-green);
+  background: linear-gradient(90deg, rgba(46, 252, 141, 0.08) 0%, var(--bg-surface) 30%);
+}
+
+.thread-situation-strip.queue-waiting {
+  border-left: 4px solid var(--slate-wait);
+  background: linear-gradient(90deg, rgba(127, 153, 140, 0.08) 0%, var(--bg-surface) 30%);
+}
+
+.situation-strip-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.situation-state-badge {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.situation-state-tag {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  padding: 3px 8px;
+  border-radius: 3px;
+  text-transform: uppercase;
+}
+
+.queue-needs_you .situation-state-tag {
+  background: rgba(247, 183, 49, 0.2);
+  color: var(--amber-alert);
+  border: 1px solid var(--amber-alert);
+}
+
+.queue-running .situation-state-tag {
+  background: rgba(10, 189, 227, 0.2);
+  color: var(--cyan-run);
+  border: 1px solid var(--cyan-run);
+}
+
+.queue-ready .situation-state-tag {
+  background: rgba(46, 252, 141, 0.2);
+  color: var(--codec-green);
+  border: 1px solid var(--codec-green);
+}
+
+.queue-waiting .situation-state-tag {
+  background: rgba(127, 153, 140, 0.2);
+  color: var(--slate-wait);
+  border: 1px solid var(--slate-wait);
+}
+
+.situation-mode-tag {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  color: var(--text-dim);
+  padding: 1px 4px;
+}
+
+.situation-narrative {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.situation-frontier {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.situation-next-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  flex-wrap: wrap;
+}
+
+.situation-next-label {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--codec-green);
+}
+
+.situation-telemetry-pill {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  background: var(--bg-deep);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-dim);
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+
+.situation-strip-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-shrink: 0;
+}
+
+.situation-actor-info {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+.situation-actor-info .actor-name {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.btn-situation-cta {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 800;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.btn-cta-amber {
+  background: var(--amber-alert);
+  color: #000;
+  border: 1px solid var(--amber-alert);
+}
+
+.btn-cta-amber:hover {
+  box-shadow: 0 0 10px var(--amber-glow);
+  filter: brightness(1.1);
+}
+
+.btn-cta-green {
+  background: var(--codec-green);
+  color: #000;
+  border: 1px solid var(--codec-green);
+}
+
+.btn-cta-slate {
+  background: var(--bg-deep);
+  color: var(--slate-wait);
+  border: 1px solid var(--slate-wait);
+}
+
+.situation-running-pulse {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--cyan-run);
+}
+
+/* 3. Triaged Workspace Toolbar */
+.workspace-top-bar {
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 0.5rem 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: sticky;
+  top: var(--header-height);
+  z-index: 50;
+}
+
+.workspace-tools-center {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-tool {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  background: var(--bg-deep);
+  border: 1px solid var(--border-dim);
+  color: var(--text-muted);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-tool:hover {
+  border-color: var(--codec-green);
+  color: var(--text-primary);
+}
+
+.btn-subtle {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-dim);
+}
+
+.btn-subtle:hover {
+  border-color: var(--border-dim);
+  color: var(--text-muted);
+}
+
+.live-status-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  color: var(--codec-green);
+  margin-left: 8px;
+  padding: 1px 6px;
+  background: rgba(46, 252, 141, 0.1);
+  border: 1px solid rgba(46, 252, 141, 0.3);
+  border-radius: 3px;
+}
+
+/* 4. Compact Working Set Constellation */
+.working-set-container-compact {
+  background: var(--bg-deep);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  padding: 4px 10px;
+  margin-top: 8px;
+}
+
+.ws-telemetry-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ws-strip-label {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: var(--text-dim);
+  letter-spacing: 0.5px;
+}
+
+.ws-actions-dock {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-ws-action {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-ws-commit {
+  background: rgba(247, 183, 49, 0.15);
+  color: var(--amber-alert);
+  border: 1px solid rgba(247, 183, 49, 0.4);
+}
+
+.btn-ws-commit:hover {
+  background: var(--amber-alert);
+  color: #000;
+}
+
+.btn-ws-sync {
+  background: var(--bg-surface);
+  color: var(--codec-green);
+  border: 1px solid var(--border-dim);
+}
+
+.btn-ws-sync:hover {
+  border-color: var(--codec-green);
+}
+
+/* 5. Compressed Activity Braid & Routine Nodes */
+.braid-event-routine {
+  padding-left: 28px;
+  margin-bottom: 0.4rem;
+  position: relative;
+}
+
+.braid-routine-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  background: rgba(11, 18, 14, 0.6);
+  border: 1px solid var(--border-subtle);
+  padding: 4px 10px;
+  border-radius: 3px;
+}
+
+.braid-routine-time {
+  color: var(--text-dim);
+  font-size: 0.68rem;
+  flex-shrink: 0;
+}
+
+.braid-routine-actor {
+  color: var(--codec-green);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.braid-routine-summary {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 0.78rem;
+}
+
+.braid-node-small {
+  width: 14px;
+  height: 14px;
+  font-size: 8px;
+  left: -7px;
+  top: 6px;
+  color: var(--text-dim);
+  background: var(--bg-deep);
+  border: 1px solid var(--border-dim);
+}
+
+/* Episode Accordion */
+.braid-episode-card {
+  border-left: 3px solid var(--cyan-run);
+}
+
+.episode-accordion {
+  margin-top: 8px;
+  background: var(--bg-deep);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.episode-accordion-summary {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  padding: 6px 10px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  user-select: none;
+  background: var(--bg-surface);
+}
+
+.episode-accordion-summary:hover {
+  color: var(--text-primary);
+}
+
+.summary-expand-hint {
+  font-size: 0.65rem;
+  color: var(--text-dim);
+}
+
+/* 6. Decision Gate 2.0 (Google PAIR Trust Calibration) */
+.decision-gate-card-v2 {
+  background: var(--bg-card);
+  border: 2px solid var(--amber-alert);
+  box-shadow: 0 0 16px var(--amber-glow);
+  border-radius: 6px;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin: 0.5rem 0;
+}
+
+.decision-gate-header-v2 {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: 8px;
+}
+
+.decision-pill {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: var(--amber-alert);
+  background: rgba(247, 183, 49, 0.15);
+  padding: 3px 8px;
+  border-radius: 3px;
+  border: 1px solid var(--amber-alert);
+}
+
+.decision-attention-badge {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-left: 8px;
+}
+
+.decision-header-right {
+  display: flex;
+  gap: 8px;
+}
+
+.decision-meta-chip {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--text-dim);
+  background: var(--bg-deep);
+  border: 1px solid var(--border-subtle);
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.decision-meta-chip strong {
+  color: var(--text-primary);
+}
+
+/* PAIR Trust Box */
+.pair-trust-box {
+  background: rgba(18, 28, 22, 0.8);
+  border: 1px solid rgba(46, 252, 141, 0.3);
+  border-radius: 4px;
+  padding: 10px 14px;
+}
+
+.pair-agent-recommendation {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.pair-robot-icon {
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.pair-recommendation-content {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 0.82rem;
+}
+
+.pair-rec-title {
+  color: var(--codec-green);
+  font-family: var(--font-sans);
+}
+
+.pair-rec-rationale {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.decision-options-grid-v2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.decision-option-box-v2 {
+  background: var(--bg-deep);
+  border: 1px solid var(--border-dim);
+  border-radius: 4px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+  transition: all 0.15s;
+}
+
+.decision-option-box-v2.is-recommended {
+  border-color: var(--codec-green);
+  background: rgba(11, 24, 17, 0.8);
+}
+
+.decision-opt-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.decision-opt-header .opt-title {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+}
+
+.badge-rec-pill {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 800;
+  background: var(--codec-green);
+  color: #000;
+  padding: 2px 6px;
+  border-radius: 2px;
+}
+
+.opt-description {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+.btn-choose-option {
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 7px 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-dim);
+  color: var(--text-primary);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-choose-option:hover {
+  background: var(--border-dim);
+}
+
+.btn-choose-recommended {
+  background: var(--codec-green-dim);
+  border-color: var(--codec-green);
+  color: #000;
+  font-weight: 800;
+}
+
+.btn-choose-recommended:hover {
+  background: var(--codec-green);
+  box-shadow: 0 0 8px var(--codec-green-glow);
+}
+
+/* 7. Parallel Comms Sticky Semantic Channel Status */
+.channel-sticky-status {
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.channel-sticky-status.status-needs_you {
+  border-left: 3px solid var(--amber-alert);
+  background: linear-gradient(180deg, rgba(247, 183, 49, 0.12) 0%, var(--bg-panel) 100%);
+}
+
+.channel-sticky-status.status-running {
+  border-left: 3px solid var(--cyan-run);
+  background: linear-gradient(180deg, rgba(10, 189, 227, 0.12) 0%, var(--bg-panel) 100%);
+}
+
+.channel-sticky-status.status-ready {
+  border-left: 3px solid var(--codec-green);
+  background: linear-gradient(180deg, rgba(46, 252, 141, 0.12) 0%, var(--bg-panel) 100%);
+}
+
+.channel-sticky-status.status-waiting {
+  border-left: 3px solid var(--slate-wait);
+  background: linear-gradient(180deg, rgba(127, 153, 140, 0.12) 0%, var(--bg-panel) 100%);
+}
+
+.status-top-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.channel-tag {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: var(--text-dim);
+}
+
+.channel-state-pill {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 1px 5px;
+  border-radius: 2px;
+}
+
+.status-summary-text {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+
+.status-next-action {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  display: flex;
+  gap: 4px;
+}
+
+.status-next-action .next-arrow {
+  color: var(--codec-green);
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+
+.status-footer-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  color: var(--text-dim);
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 3px;
+  margin-top: 2px;
+}
+
+.status-actor-tag strong {
+  color: var(--text-primary);
+}
+
+/* 8. De-duplicated Sidebar Empty States */
+.sidebar-box-empty-bar {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  padding: 6px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text-dim);
+}
+
+.btn-empty-bar-action {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  padding: 2px 6px;
+  background: transparent;
+  border: 1px solid var(--border-dim);
+  color: var(--text-muted);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.btn-empty-bar-action:hover {
+  border-color: var(--codec-green);
+  color: var(--codec-green);
+}
+
+/* 9. Accessibility Focus Rings */
+:focus-visible {
+  outline: 2px solid var(--codec-green);
+  outline-offset: 2px;
+}
+
+/* 10. Viewport Scalability (1366x768, 1440x900 & Dense Desktops) */
+@media (max-width: 1440px) {
+  .workspace-body {
+    grid-template-columns: 1fr 340px;
+    padding: 1rem 1.5rem;
+    gap: 1rem;
+  }
+  .thread-situation-strip {
+    padding: 0.5rem 1rem;
+  }
+}
+
+@media (max-width: 1200px) {
+  .workspace-body {
+    grid-template-columns: 1fr;
+  }
+  .cockpit-layout {
+    grid-template-columns: 200px 1fr;
+  }
+}
+
 
 
 
